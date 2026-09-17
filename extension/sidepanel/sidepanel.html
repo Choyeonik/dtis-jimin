@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>취소표 자동 신청</title>
+<link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+
+<header class="header">
+  <div class="header-title">
+    <div class="header-icon">🚄</div>
+    <div>
+      <div class="header-name">취소표 자동 신청</div>
+      <div class="header-sub">DTIS 좌석 자동화</div>
+    </div>
+  </div>
+  <div id="run-badge" class="badge">
+    <span class="dot"></span>
+    <span id="run-label">대기 중</span>
+  </div>
+</header>
+
+<main class="content">
+
+  <div class="fetch-stations">
+    <button id="fetch-stations-btn" type="button" class="btn btn-outline">🔄 역 목록 읽어오기</button>
+    <div id="fetch-stations-hint" class="hint">대상 사이트 탭이 열려 있어야 합니다</div>
+  </div>
+
+  <section class="slot" id="slot-0" data-index="0">
+    <div class="slot-header">
+      <span class="slot-title">슬롯 1</span>
+      <span class="status-badge" data-status-for="0">대기 전</span>
+    </div>
+    <label class="field">
+      <span class="field-label">탑승일자</span>
+      <input type="date" class="date-input" data-field="date" />
+    </label>
+    <div class="field-row">
+      <label class="field">
+        <span class="field-label">출발역</span>
+        <select class="select-input" data-field="from"></select>
+      </label>
+      <label class="field">
+        <span class="field-label">도착역</span>
+        <select class="select-input" data-field="to"></select>
+      </label>
+    </div>
+    <div class="field">
+      <span class="field-label">시간대</span>
+      <div class="ampm-toggle">
+        <label class="ampm-option"><input type="radio" name="ampm-0" value="AM" /> 오전</label>
+        <label class="ampm-option"><input type="radio" name="ampm-0" value="PM" /> 오후</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="slot" id="slot-1" data-index="1">
+    <div class="slot-header">
+      <span class="slot-title">슬롯 2</span>
+      <span class="status-badge" data-status-for="1">대기 전</span>
+    </div>
+    <label class="field">
+      <span class="field-label">탑승일자</span>
+      <input type="date" class="date-input" data-field="date" />
+    </label>
+    <div class="field-row">
+      <label class="field">
+        <span class="field-label">출발역</span>
+        <select class="select-input" data-field="from"></select>
+      </label>
+      <label class="field">
+        <span class="field-label">도착역</span>
+        <select class="select-input" data-field="to"></select>
+      </label>
+    </div>
+    <div class="field">
+      <span class="field-label">시간대</span>
+      <div class="ampm-toggle">
+        <label class="ampm-option"><input type="radio" name="ampm-1" value="AM" /> 오전</label>
+        <label class="ampm-option"><input type="radio" name="ampm-1" value="PM" /> 오후</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="log-panel">
+    <div class="log-title">실행 로그</div>
+    <div id="log-list" class="log-list">
+      <div class="log-empty">아직 기록이 없습니다</div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <button id="stop-btn" type="button" class="btn btn-outline" disabled>■ 중지</button>
+  <button id="start-btn" type="button" class="btn btn-primary">▶ 시작</button>
+</footer>
+
+<script src="sidepanel.js"></script>
+</body>
+</html>

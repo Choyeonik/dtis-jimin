@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "DTIS 좌석 자동 신청",
+  "version": "0.1.0",
+  "description": "dtis.mil.kr 열차 승차권 취소표를 자동으로 잡아주는 개인용 확장프로그램",
+  "permissions": ["sidePanel", "scripting", "tabs", "power", "storage"],
+  "host_permissions": [
+    "https://www.dtis.mil.kr/*",
+    "https://discord.com/*",
+    "https://kapi.kakao.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  "action": {},
+  "content_scripts": [
+    {
+      "matches": ["https://www.dtis.mil.kr/*"],
+      "js": ["content/dialog-override.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://www.dtis.mil.kr/*"],
+      "js": ["content/automate.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

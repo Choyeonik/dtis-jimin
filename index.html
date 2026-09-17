@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-3114b2da-1ad2-4267-99fa-40225130da98/styles.css">
+<script src="_ds/industry-3114b2da-1ad2-4267-99fa-40225130da98/_ds_bundle.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@500;600&display=swap">
+<style>
+  body { margin: 0; }
+  @keyframes dc-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes dc-spin { to { transform: rotate(360deg); } }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; background: #e7e7ea; display: flex; flex-direction: column; align-items: center; padding: 28px 16px; font-family: 'Barlow', system-ui, sans-serif; box-sizing: border-box;">
+
+  <div style="font-family: 'Barlow', system-ui, sans-serif; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #7a7a7d; margin-bottom: 12px;">Chrome 사이드 패널 · 380 × 680</div>
+
+  <div style="width: 380px; height: 680px; background: #f2f2f3; color: #1d1f20; border: 1px solid rgba(29,31,32,0.16); box-shadow: 0 3px 10px rgba(43,43,45,0.16); display: flex; flex-direction: column; overflow: hidden;">
+
+    <!-- Header -->
+    <div style="flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 13.6px; border-bottom: 1px solid rgba(29,31,32,0.16); background: #f2f2f3;">
+      <div style="display: flex; align-items: center; gap: 9px; min-width: 0;">
+        <div style="flex: none; width: 28px; height: 28px; background: #5980a6; display: flex; align-items: center; justify-content: center;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f2f2f3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+        </div>
+        <div style="min-width: 0;">
+          <div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">취소표 자동 신청</div>
+          <div style="font-size: 10px; color: #7a7a7d; line-height: 1.2; margin-top: 1px;">DTIS 좌석 자동화</div>
+        </div>
+      </div>
+      <div style="flex: none; display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 2px; background: {{ runBadge.bg }}; color: {{ runBadge.color }};">
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: {{ runBadge.dot }}; animation: {{ runBadge.dotAnim }};"></span>
+        <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 0.02em; white-space: nowrap;">{{ runBadge.label }}</span>
+      </div>
+    </div>
+
+    <!-- Scrollable content -->
+    <div style="flex: 1; overflow-y: auto; padding: 13.6px; display: flex; flex-direction: column; gap: 13.6px;">
+
+      <!-- Fetch stations -->
+      <div>
+        <button type="button" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 13.5px; color: #1d1f20; background: transparent; border: 1px solid rgba(29,31,32,0.16); padding: 8px 10px; border-radius: 4px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+          역 목록 읽어오기
+        </button>
+        <div style="font-size: 10.5px; color: #7a7a7d; margin-top: 5px; text-align: center;">최근 갱신 13:00 · 대상 사이트 탭이 열려 있어야 합니다</div>
+      </div>
+
+      <!-- Slot 1 -->
+      <div style="position: relative; border: 1px solid rgba(29,31,32,0.16); padding: 10.2px; display: flex; flex-direction: column; gap: 8px;">
+        <span style="position: absolute; width: 11px; height: 11px; top: -6px; left: -6px; background: linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/1px 100% no-repeat, linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/100% 1px no-repeat;"></span>
+        <span style="position: absolute; width: 11px; height: 11px; top: -6px; right: -6px; background: linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/1px 100% no-repeat, linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/100% 1px no-repeat;"></span>
+        <span style="position: absolute; width: 11px; height: 11px; bottom: -6px; left: -6px; background: linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/1px 100% no-repeat, linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/100% 1px no-repeat;"></span>
+        <span style="position: absolute; width: 11px; height: 11px; bottom: -6px; right: -6px; background: linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/1px 100% no-repeat, linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/100% 1px no-repeat;"></span>
+
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5d5d60;">슬롯 1</span>
+          <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 500; padding: 3px 8px; border-radius: 3px; background: {{ slot1Badge.bg }}; color: {{ slot1Badge.color }};">
+            <sc-if value="{{ slot1Badge.icon }}" hint-placeholder-val="{{ true }}">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="animation: {{ slot1Badge.iconAnim }};" dangerouslySetInnerHTML="{{ slot1Badge.iconHtml }}"></svg>
+            </sc-if>
+            {{ slot1Badge.label }}
+          </span>
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 11.5px; margin-bottom: 4px; color: rgba(29,31,32,0.7);">탑승일자</label>
+          <input type="date" defaultValue="2026-09-25" style="width: 100%; box-sizing: border-box; min-height: 34px; padding: 6px 10px; font-family: 'Barlow', sans-serif; font-size: 13.5px; color: #1d1f20; background: #e9e9ea; border: 1px solid rgba(29,31,32,0.16); border-radius: 4px;" />
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div>
+            <label style="display: block; font-size: 11.5px; margin-bottom: 4px; color: rgba(29,31,32,0.7);">출발역</label>
+            <div style="position: relative;">
+              <select defaultValue="서울" style="width: 100%; box-sizing: border-box; appearance: none; min-height: 34px; padding: 6px 24px 6px 10px; font-family: 'Barlow', sans-serif; font-size: 13.5px; color: #1d1f20; background: #e9e9ea; border: 1px solid rgba(29,31,32,0.16); border-radius: 4px;">
+                <sc-for list="{{ stationsFrom }}" as="st" hint-placeholder-count="3">
+                  <option value="{{ st }}">{{ st }}</option>
+                </sc-for>
+              </select>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7a7a7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none;"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+          </div>
+          <div>
+            <label style="display: block; font-size: 11.5px; margin-bottom: 4px; color: rgba(29,31,32,0.7);">도착역</label>
+            <div style="position: relative;">
+              <select defaultValue="동두천" style="width: 100%; box-sizing: border-box; appearance: none; min-height: 34px; padding: 6px 24px 6px 10px; font-family: 'Barlow', sans-serif; font-size: 13.5px; color: #1d1f20; background: #e9e9ea; border: 1px solid rgba(29,31,32,0.16); border-radius: 4px;">
+                <sc-for list="{{ stationsTo }}" as="st" hint-placeholder-count="3">
+                  <option value="{{ st }}">{{ st }}</option>
+                </sc-for>
+              </select>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7a7a7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none;"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 11.5px; margin-bottom: 4px; color: rgba(29,31,32,0.7);">시간대</label>
+          <div style="display: flex; border: 1px solid rgba(29,31,32,0.16); border-radius: 4px; overflow: hidden;">
+            <label style="flex: 1; text-align: center; padding: 6px 0; font-size: 12.5px; cursor: pointer; background: #5980a6; color: #f2f2f3;">
+              <input type="radio" name="ampm1" defaultChecked style="position: absolute; opacity: 0; width: 0; height: 0;" />오전
+            </label>
+            <label style="flex: 1; text-align: center; padding: 6px 0; font-size: 12.5px; cursor: pointer; border-left: 1px solid rgba(29,31,32,0.16); background: transparent; color: #1d1f20;">
+              <input type="radio" name="ampm1" style="position: absolute; opacity: 0; width: 0; height: 0;" />오후
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slot 2 -->
+      <div style="position: relative; border: 1px solid rgba(29,31,32,0.16); padding: 10.2px; display: flex; flex-direction: column; gap: 8px;">
+        <span style="position: absolute; width: 11px; height: 11px; top: -6px; left: -6px; background: linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/1px 100% no-repeat, linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/100% 1px no-repeat;"></span>
+        <span style="position: absolute; width: 11px; height: 11px; top: -6px; right: -6px; background: linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/1px 100% no-repeat, linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/100% 1px no-repeat;"></span>
+        <span style="position: absolute; width: 11px; height: 11px; bottom: -6px; left: -6px; background: linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/1px 100% no-repeat, linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/100% 1px no-repeat;"></span>
+        <span style="position: absolute; width: 11px; height: 11px; bottom: -6px; right: -6px; background: linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/1px 100% no-repeat, linear-gradient(rgba(29,31,32,0.5),rgba(29,31,32,0.5)) center/100% 1px no-repeat;"></span>
+
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5d5d60;">슬롯 2</span>
+          <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 500; padding: 3px 8px; border-radius: 3px; background: {{ slot2Badge.bg }}; color: {{ slot2Badge.color }};">
+            <sc-if value="{{ slot2Badge.icon }}" hint-placeholder-val="{{ true }}">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="animation: {{ slot2Badge.iconAnim }};" dangerouslySetInnerHTML="{{ slot2Badge.iconHtml }}"></svg>
+            </sc-if>
+            {{ slot2Badge.label }}
+          </span>
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 11.5px; margin-bottom: 4px; color: rgba(29,31,32,0.7);">탑승일자</label>
+          <input type="date" defaultValue="2026-09-26" style="width: 100%; box-sizing: border-box; min-height: 34px; padding: 6px 10px; font-family: 'Barlow', sans-serif; font-size: 13.5px; color: #1d1f20; background: #e9e9ea; border: 1px solid rgba(29,31,32,0.16); border-radius: 4px;" />
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div>
+            <label style="display: block; font-size: 11.5px; margin-bottom: 4px; color: rgba(29,31,32,0.7);">출발역</label>
+            <div style="position: relative;">
+              <select defaultValue="용산" style="width: 100%; box-sizing: border-box; appearance: none; min-height: 34px; padding: 6px 24px 6px 10px; font-family: 'Barlow', sans-serif; font-size: 13.5px; color: #1d1f20; background: #e9e9ea; border: 1px solid rgba(29,31,32,0.16); border-radius: 4px;">
+                <sc-for list="{{ stationsFrom }}" as="st2" hint-placeholder-count="3">
+                  <option value="{{ st2 }}">{{ st2 }}</option>
+                </sc-for>
+              </select>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7a7a7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none;"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+          </div>
+          <div>
+            <label style="display: block; font-size: 11.5px; margin-bottom: 4px; color: rgba(29,31,32,0.7);">도착역</label>
+            <div style="position: relative;">
+              <select defaultValue="춘천" style="width: 100%; box-sizing: border-box; appearance: none; min-height: 34px; padding: 6px 24px 6px 10px; font-family: 'Barlow', sans-serif; font-size: 13.5px; color: #1d1f20; background: #e9e9ea; border: 1px solid rgba(29,31,32,0.16); border-radius: 4px;">
+                <sc-for list="{{ stationsTo }}" as="st2b" hint-placeholder-count="3">
+                  <option value="{{ st2b }}">{{ st2b }}</option>
+                </sc-for>
+              </select>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7a7a7d" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none;"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label style="display: block; font-size: 11.5px; margin-bottom: 4px; color: rgba(29,31,32,0.7);">시간대</label>
+          <div style="display: flex; border: 1px solid rgba(29,31,32,0.16); border-radius: 4px; overflow: hidden;">
+            <label style="flex: 1; text-align: center; padding: 6px 0; font-size: 12.5px; cursor: pointer; background: transparent; color: #1d1f20;">
+              <input type="radio" name="ampm2" style="position: absolute; opacity: 0; width: 0; height: 0;" />오전
+            </label>
+            <label style="flex: 1; text-align: center; padding: 6px 0; font-size: 12.5px; cursor: pointer; border-left: 1px solid rgba(29,31,32,0.16); background: #5980a6; color: #f2f2f3;">
+              <input type="radio" name="ampm2" defaultChecked style="position: absolute; opacity: 0; width: 0; height: 0;" />오후
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity log -->
+      <div style="border: 1px solid rgba(29,31,32,0.16); padding: 10.2px; display: flex; flex-direction: column; gap: 7px;">
+        <div style="display: flex; align-items: center; gap: 6px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5d5d60;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          실행 로그
+        </div>
+        <sc-if value="{{ hasLogs }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <sc-for list="{{ logEntries }}" as="entry" hint-placeholder-count="2">
+              <div style="display: flex; gap: 8px; font-size: 12px; line-height: 1.4;">
+                <span style="flex: none; color: #7a7a7d; font-variant-numeric: tabular-nums;">{{ entry.time }}</span>
+                <span style="color: #1d1f20;">{{ entry.text }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ hasLogs }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size: 12px; color: #7a7a7d; font-style: italic;">아직 기록이 없습니다</div>
+        </sc-if>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div style="flex: none; display: flex; gap: 7px; padding: 10.2px 13.6px; border-top: 1px solid rgba(29,31,32,0.16); background: #f2f2f3;">
+      <button type="button" disabled="{{ stopDisabled }}" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 13.5px; color: #1d1f20; background: transparent; border: 1px solid rgba(29,31,32,0.16); border-radius: 4px; padding: 9px 0; opacity: {{ stopOpacity }};">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="5" y="5" width="14" height="14" rx="1"/></svg>
+        중지
+      </button>
+      <div style="position: relative; flex: 2;">
+        <span style="position: absolute; width: 11px; height: 11px; top: -6px; left: -6px; background: linear-gradient(rgba(242,242,243,0.7),rgba(242,242,243,0.7)) center/1px 100% no-repeat, linear-gradient(rgba(242,242,243,0.7),rgba(242,242,243,0.7)) center/100% 1px no-repeat;"></span>
+        <span style="position: absolute; width: 11px; height: 11px; top: -6px; right: -6px; background: linear-gradient(rgba(242,242,243,0.7),rgba(242,242,243,0.7)) center/1px 100% no-repeat, linear-gradient(rgba(242,242,243,0.7),rgba(242,242,243,0.7)) center/100% 1px no-repeat;"></span>
+        <span style="position: absolute; width: 11px; height: 11px; bottom: -6px; left: -6px; background: linear-gradient(rgba(242,242,243,0.7),rgba(242,242,243,0.7)) center/1px 100% no-repeat, linear-gradient(rgba(242,242,243,0.7),rgba(242,242,243,0.7)) center/100% 1px no-repeat;"></span>
+        <span style="position: absolute; width: 11px; height: 11px; bottom: -6px; right: -6px; background: linear-gradient(rgba(242,242,243,0.7),rgba(242,242,243,0.7)) center/1px 100% no-repeat, linear-gradient(rgba(242,242,243,0.7),rgba(242,242,243,0.7)) center/100% 1px no-repeat;"></span>
+        <button type="button" disabled="{{ startDisabled }}" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 14.5px; color: #f2f2f3; background: #5980a6; border: 1px solid #5980a6; border-radius: 4px; padding: 9px 0; opacity: {{ startOpacity }};">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+          시작
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: {&quot;width&quot;: 460, &quot;height&quot;: 760},
+  &quot;runStatus&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;running&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;options&quot;: [&quot;idle&quot;, &quot;running&quot;], &quot;section&quot;: &quot;상태&quot;},
+  &quot;slot1Status&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;done&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;options&quot;: [&quot;pending&quot;, &quot;running&quot;, &quot;done&quot;], &quot;section&quot;: &quot;상태&quot;},
+  &quot;slot2Status&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;running&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;options&quot;: [&quot;pending&quot;, &quot;running&quot;, &quot;done&quot;], &quot;section&quot;: &quot;상태&quot;}
+}">
+class Component extends DCLogic {
+  state = {};
+  renderVals() {
+    const runStatus = this.props.runStatus ?? 'running';
+    const slot1Status = this.state.slot1Status ?? (this.props.slot1Status ?? 'done');
+    const slot2Status = this.state.slot2Status ?? (this.props.slot2Status ?? 'running');
+
+    const clockIcon = '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>';
+    const loaderIcon = '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path>';
+    const checkIcon = '<path d="M20 6 9 17l-5-5"></path>';
+
+    const statusMeta = {
+      pending: { label: '대기 전', bg: '#e7e7ea', color: '#5d5d60', icon: true, iconHtml: { __html: clockIcon }, iconAnim: 'none' },
+      running: { label: '진행 중', bg: '#eef6ff', color: '#2c455d', icon: true, iconHtml: { __html: loaderIcon }, iconAnim: 'dc-spin 1s linear infinite' },
+      done: { label: '완료됨', bg: '#5980a6', color: '#f2f2f3', icon: true, iconHtml: { __html: checkIcon }, iconAnim: 'none' },
+    };
+
+    const runBadge = runStatus === 'running'
+      ? { label: '실행 중', bg: '#eef6ff', color: '#2c455d', dot: '#5980a6', dotAnim: 'dc-pulse 1.4s ease-in-out infinite' }
+      : { label: '대기 중', bg: '#e7e7ea', color: '#5d5d60', dot: '#98989b', dotAnim: 'none' };
+
+    const logEntries = [];
+    if (slot1Status === 'running') logEntries.push({ time: '13:02:11', text: '슬롯 1 · 좌석 새로고침 중' });
+    if (slot1Status === 'done') logEntries.push({ time: '13:02:47', text: '슬롯 1 · 신청 완료' });
+    if (slot2Status === 'running') logEntries.push({ time: '13:04:03', text: '슬롯 2 · 좌석 새로고침 중' });
+    if (slot2Status === 'done') logEntries.push({ time: '13:05:58', text: '슬롯 2 · 신청 완료' });
+    logEntries.reverse();
+
+    return {
+      runBadge,
+      slot1Badge: statusMeta[slot1Status],
+      slot2Badge: statusMeta[slot2Status],
+      logEntries,
+      hasLogs: logEntries.length > 0,
+      stationsFrom: ['서울', '청량리', '용산'],
+      stationsTo: ['동두천', '의정부', '춘천'],
+      startDisabled: runStatus === 'running',
+      stopDisabled: runStatus === 'idle',
+      startOpacity: runStatus === 'running' ? 0.45 : 1,
+      stopOpacity: runStatus === 'idle' ? 0.45 : 1,
+    };
+  }
+}
+
+</script>
+</body>
+</html>
