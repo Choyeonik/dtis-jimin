@@ -54,13 +54,9 @@
         await checkAndAct();
         return;
       }
-      const backButton = findClickableContaining("이전");
-      if (!backButton) {
-        log("'이전' 버튼을 찾지 못해 화면A 복귀를 중단함");
-        await sendToBackground({ type: "RETURN_DONE" });
-        return;
-      }
-      backButton.click();
+      // "이전" 버튼은 텍스트 없는 아이콘 이미지(`<a href="javascript:history.back();">`)라
+      // DOM에서 찾아 클릭하는 대신 그 버튼이 하는 일(history.back())을 그대로 호출한다.
+      history.back();
       await sleep(400);
       // 방금 클릭이 실제 페이지 이동이었다면 이 지점의 스크립트 컨텍스트는 이미
       // 사라졌고, 새 페이지에서 checkReturnAndAct()가 처음부터 다시 실행된다.
@@ -196,23 +192,42 @@
     await waitFor(() => findResultRows().length > 0, 4000);
 
     const rows = findResultRows();
-    const match = rows.find((row) => rowMatchesSlot(row, slot));
-    if (!match) {
+    const matches = rows.filter((row) => rowMatchesSlot(row, slot));
+    if (matches.length === 0) {
       await sendToBackground({ type: "NO_MATCH", slotIndex: slot.index });
       log(`슬롯 ${slot.index + 1}: 조건에 맞는 열차를 찾지 못함`);
       return;
     }
 
+    // 조건에 맞는 열차가 여러 개면 한 대에만 매달리지 않고 라운드로빈으로 돌아가며
+    // 확인한다 — 어느 후보를 다음으로 시도할지는 background가 정해준다(이전에
+    // 시도한 열차 id를 기억해뒀다가 그다음 걸 고름).
+    const candidates = matches
+      .map((row) => ({ id: extractTrainId(row), row }))
+      .filter((c) => c.id != null);
+    const { id: targetId } = await sendToBackground({
+      type: "PICK_CANDIDATE",
+      slotIndex: slot.index,
+      candidateIds: candidates.map((c) => c.id),
+    });
+    const target = candidates.find((c) => c.id === targetId) || candidates[0];
+
     // 화면C의 잔여석 표에는 시간이 안 적혀 있어서, 지금 이 행("역명 10:00")에서
     // 미리 시간을 뽑아 background에 남겨둔다 — 나중에 완료 알림에 쓴다.
-    const cells = match.querySelectorAll("td");
+    const cells = target.row.querySelectorAll("td");
     const departTime = cells[5]?.textContent.match(/\d{1,2}:\d{2}/)?.[0] || null;
     const arriveTime = cells[6]?.textContent.match(/\d{1,2}:\d{2}/)?.[0] || null;
     await sendToBackground({ type: "TRAIN_MATCHED", slotIndex: slot.index, departTime, arriveTime });
 
-    log(`슬롯 ${slot.index + 1}: 조건에 맞는 열차 발견, 예약가능 클릭`);
-    match.querySelector("button.m_btn_106")?.click();
+    log(`슬롯 ${slot.index + 1}: 조건에 맞는 열차 ${matches.length}개 중 하나 선택(id=${targetId}), 예약가능 클릭`);
+    target.row.querySelector("button.m_btn_106")?.click();
     // linkPage01_01_2(id, date, 1) navigates to Screen B; script re-runs fresh on the new page.
+  }
+
+  function extractTrainId(row) {
+    const onclick = row.querySelector("button.m_btn_106")?.getAttribute("onclick") || "";
+    const m = onclick.match(/linkPage01_01_2\((\d+)/);
+    return m ? parseInt(m[1], 10) : null;
   }
 
   function findResultRows() {
@@ -233,6 +248,8 @@
     const toText = cells[6].textContent;
     if (!fromText.startsWith(slot.from) || !toText.startsWith(slot.to)) return false;
 
+    if (slot.ampm === "ALL") return true; // 오전/오후 상관없이 다 후보로 삼음
+
     const m = fromText.match(/(\d{1,2}):(\d{2})/);
     if (!m) return true; // can't verify AM/PM, don't block on it
     const isPM = parseInt(m[1], 10) >= 12;
@@ -249,18 +266,22 @@
 
   // ---------- Screen C: 잔여석예약 (새로고침 반복 + 좌석신청) ----------
 
+  // 열차 한 대당 이 정도만 확인하고, 없으면 화면A로 돌아가 다음 후보 열차로 넘어간다
+  // (라운드로빈) — 총 요청량은 그대로 두고 여러 열차에 나눠서 쓰기 위함.
+  const MAX_REFRESH_ATTEMPTS_PER_VISIT = 6;
+
   async function runScreenC(slot) {
-    const fromSelect = document.getElementById("sstation");
-    const toSelect = document.getElementById("estation");
-    selectOptionByText(fromSelect, slot.from);
-    selectOptionByText(toSelect, slot.to);
+    await ensureStationsSelected(slot);
 
-    log(`슬롯 ${slot.index + 1}: 새로고침 시작`);
+    log(`슬롯 ${slot.index + 1}: 새로고침 시작 (이 열차 최대 ${MAX_REFRESH_ATTEMPTS_PER_VISIT}회 확인 후 다음 후보로 이동)`);
 
-    while (true) {
+    for (let attempt = 0; attempt < MAX_REFRESH_ATTEMPTS_PER_VISIT; attempt++) {
       const status = await sendToBackground({ type: "GET_AUTOMATION_STATUS" });
       if (!status?.running) return; // user pressed 중지, or already stopped elsewhere
 
+      // "새로고침"이 이 select 영역까지 서버 응답으로 다시 그려버리는 경우를 대비해,
+      // 클릭 직전마다 승차역/하차역이 여전히 맞게 선택돼 있는지 다시 확인한다.
+      await ensureStationsSelected(slot);
       document.querySelector('button[onclick*="fnRmndrSeat"]')?.click();
       await sleep(randomBetween(260, 300));
 
@@ -293,8 +314,10 @@
           await sendToBackground({ type: "DUPLICATE_BOOKING", slotIndex: slot.index, reason: lastAlert.message });
           return;
         }
-        log(`슬롯 ${slot.index + 1}: 신청 실패(${lastAlert.message}) — 재시도`);
-        continue;
+        // 이 열차에서 놓쳤다고 계속 붙잡지 않고, 다음 후보 열차로 넘어간다.
+        log(`슬롯 ${slot.index + 1}: 신청 실패(${lastAlert.message}) — 다음 후보로 이동`);
+        await sendToBackground({ type: "CANDIDATE_EXHAUSTED", slotIndex: slot.index, reason: "신청 실패" });
+        return;
       }
 
       // 아직 화면C에 남아있다면(=페이지 이동 없이 여기까지 옴) alert도 없었으니 성공으로 본다.
@@ -304,6 +327,16 @@
       await sendToBackground({ type: "SLOT_DONE", slotIndex: slot.index, ticket });
       return;
     }
+
+    log(`슬롯 ${slot.index + 1}: 이번 열차엔 좌석이 뜨지 않음 — 다음 후보로 이동`);
+    await sendToBackground({ type: "CANDIDATE_EXHAUSTED", slotIndex: slot.index, reason: "좌석 없음" });
+  }
+
+  async function ensureStationsSelected(slot) {
+    // 옵션이 아직 채워지기 전(1개=플레이스홀더 "선택"뿐)일 수 있어 잠깐 기다린다.
+    await waitFor(() => (document.getElementById("sstation")?.options.length ?? 0) > 1, 1000);
+    selectOptionByText(document.getElementById("sstation"), slot.from);
+    selectOptionByText(document.getElementById("estation"), slot.to);
   }
 
   function findSeatButtons() {
@@ -351,18 +384,14 @@
     return Array.from(candidates).find((el) => normalizeText(el.textContent) === text);
   }
 
-  // "< 이전"처럼 화살표 아이콘이 텍스트에 섞여 있을 수 있는 버튼을 위해 포함 여부로 찾는다.
-  function findClickableContaining(text) {
-    const candidates = document.querySelectorAll(
-      'button, a, input[type="button"], input[type="submit"], [role="button"]'
-    );
-    return Array.from(candidates).find((el) => normalizeText(el.textContent).includes(text));
-  }
-
   function selectOptionByText(select, text) {
     if (!select) return;
     const option = Array.from(select.options).find((o) => o.textContent.trim() === text);
-    if (!option) return;
+    if (!option) {
+      log(`"${text}" 옵션을 select에서 찾지 못함`);
+      return;
+    }
+    if (select.value === option.value) return; // already correct — skip firing change again
     select.value = option.value;
     select.dispatchEvent(new Event("change", { bubbles: true }));
   }

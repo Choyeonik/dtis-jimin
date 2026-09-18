@@ -36,6 +36,10 @@ async function handleMessage(msg, sender) {
       return getAutomationStatus();
     case "TRAIN_MATCHED":
       return setSlotTrainTime(msg.slotIndex, msg.departTime, msg.arriveTime);
+    case "PICK_CANDIDATE":
+      return pickCandidate(msg.slotIndex, msg.candidateIds);
+    case "CANDIDATE_EXHAUSTED":
+      return candidateExhausted(msg.slotIndex, msg.reason);
     case "SEAT_APPLY_STARTED":
       return setPendingTicket(msg.slotIndex, msg.ticket);
     case "SEAT_APPLY_FAILED":
@@ -88,6 +92,15 @@ async function addLog(text) {
   await setState({ logs });
 }
 
+// 실패(또는 설정 누락)를 실행 로그에 남겨서, 조용히 안 오는 알림의 원인을
+// "config.js 확인해야 함" 수준까지는 바로 알 수 있게 한다.
+async function notifyAllAndLog(message) {
+  const results = await notifyAll(message);
+  for (const r of results) {
+    if (!r.ok) await addLog(`${r.channel} 알림 실패: ${r.detail}`);
+  }
+}
+
 // ---------- Automation control ----------
 
 async function startAutomation(rawSlots) {
@@ -129,7 +142,7 @@ async function stopAutomation(reason) {
   await chrome.power.releaseKeepAwake();
   await setState({ running: false });
   await addLog(`자동화 중단: ${reason}`);
-  await notifyAll(`⏹️ 자동화가 중단되었습니다: ${reason}`);
+  await notifyAllAndLog(`⏹️ 자동화가 중단되었습니다: ${reason}`);
   return { ok: true };
 }
 
@@ -155,6 +168,33 @@ async function setSlotTrainTime(slotIndex, departTime, arriveTime) {
   const state = await getState();
   const slots = state.slots.map((s, i) => (i === slotIndex ? { ...s, departTime, arriveTime } : s));
   await setState({ slots });
+  return { ok: true };
+}
+
+// 라운드로빈 (F3 확장): 조건에 맞는 열차가 여러 대면 한 대에만 매달리지 않고
+// 돌아가며 확인한다. "다음엔 뭘 시도할지"는 여기(background)가 정한다 — 직전에
+// 시도했던 열차 id를 기억해뒀다가, 이번에 돌아온 후보 목록에서 그다음 것을 고른다.
+// (그 열차가 이번엔 후보에서 빠졌으면(매진 등) 처음부터 다시 시작.)
+async function pickCandidate(slotIndex, candidateIds) {
+  const state = await getState();
+  const lastId = state.slots[slotIndex]?.lastTriedCandidateId;
+  let nextId = candidateIds[0];
+  if (lastId != null) {
+    const pos = candidateIds.indexOf(lastId);
+    if (pos !== -1) nextId = candidateIds[(pos + 1) % candidateIds.length];
+  }
+  const slots = state.slots.map((s, i) => (i === slotIndex ? { ...s, lastTriedCandidateId: nextId } : s));
+  await setState({ slots });
+  return { id: nextId };
+}
+
+// 이번에 고른 열차에서 좌석을 못 잡았을 때(빈자리 없음 / 신청했다가 놓침) — 화면A로
+// 돌아가는 것까지만 여기서 시작해두고, 다음 후보를 고르는 건 content script가
+// 화면A에 다시 도착했을 때 runScreenA() → pickCandidate()가 이어서 한다.
+async function candidateExhausted(slotIndex, reason) {
+  const state = await getState();
+  await addLog(`슬롯 ${slotIndex + 1}: ${reason || "이번 열차엔 좌석 없음"} — 다음 후보로 이동`);
+  await startReturnToScreenA(state.tabId);
   return { ok: true };
 }
 
@@ -192,7 +232,7 @@ async function handleSlotDone(slotIndex, ticket) {
 
   const slot = slots[slotIndex];
   const info = ticket || { date: slot.date, from: slot.from, to: slot.to, departTime: "-", arriveTime: "-" };
-  await notifyAll(buildSuccessMessage(info));
+  await notifyAllAndLog(buildSuccessMessage(info));
 
   const nextIndex = slotIndex + 1;
   if (nextIndex >= slots.length) {
