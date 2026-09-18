@@ -273,9 +273,18 @@
   async function runScreenC(slot) {
     await ensureStationsSelected(slot);
 
-    log(`슬롯 ${slot.index + 1}: 새로고침 시작 (이 열차 최대 ${MAX_REFRESH_ATTEMPTS_PER_VISIT}회 확인 후 다음 후보로 이동)`);
+    // 조건에 맞는 후보가 이 열차 하나뿐이면 돌아갈 다음 후보가 없으니, 화면A를
+    // 왔다갔다하지 않고 이 화면에서 계속 새로고침한다(라운드로빈 생략).
+    const onlyCandidate = slot.candidateCount === 1;
+    const attemptLimit = onlyCandidate ? Infinity : MAX_REFRESH_ATTEMPTS_PER_VISIT;
 
-    for (let attempt = 0; attempt < MAX_REFRESH_ATTEMPTS_PER_VISIT; attempt++) {
+    log(
+      onlyCandidate
+        ? `슬롯 ${slot.index + 1}: 새로고침 시작 (후보 1개뿐 — 계속 이 열차에서 확인)`
+        : `슬롯 ${slot.index + 1}: 새로고침 시작 (이 열차 최대 ${MAX_REFRESH_ATTEMPTS_PER_VISIT}회 확인 후 다음 후보로 이동)`
+    );
+
+    for (let attempt = 0; attempt < attemptLimit; attempt++) {
       const status = await sendToBackground({ type: "GET_AUTOMATION_STATUS" });
       if (!status?.running) return; // user pressed 중지, or already stopped elsewhere
 
@@ -313,6 +322,11 @@
           log(`슬롯 ${slot.index + 1}: 신청 중단(${lastAlert.message}) — 이미 예약된 것으로 보임`);
           await sendToBackground({ type: "DUPLICATE_BOOKING", slotIndex: slot.index, reason: lastAlert.message });
           return;
+        }
+        if (onlyCandidate) {
+          // 넘어갈 다음 후보가 없으니 화면A로 나가지 않고 바로 다시 시도한다.
+          log(`슬롯 ${slot.index + 1}: 신청 실패(${lastAlert.message}) — 같은 열차에서 재시도`);
+          continue;
         }
         // 이 열차에서 놓쳤다고 계속 붙잡지 않고, 다음 후보 열차로 넘어간다.
         log(`슬롯 ${slot.index + 1}: 신청 실패(${lastAlert.message}) — 다음 후보로 이동`);

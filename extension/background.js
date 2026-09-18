@@ -183,7 +183,11 @@ async function pickCandidate(slotIndex, candidateIds) {
     const pos = candidateIds.indexOf(lastId);
     if (pos !== -1) nextId = candidateIds[(pos + 1) % candidateIds.length];
   }
-  const slots = state.slots.map((s, i) => (i === slotIndex ? { ...s, lastTriedCandidateId: nextId } : s));
+  // 후보가 1개뿐이면 화면C가 라운드로빈 대신 그 열차에서 계속 새로고침하도록,
+  // 몇 개 중에서 골랐는지도 같이 남겨둔다.
+  const slots = state.slots.map((s, i) =>
+    i === slotIndex ? { ...s, lastTriedCandidateId: nextId, candidateCount: candidateIds.length } : s
+  );
   await setState({ slots });
   return { id: nextId };
 }
