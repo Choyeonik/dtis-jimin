@@ -61,6 +61,10 @@ body {
 .slot-header { display: flex; align-items: center; justify-content: space-between; }
 .slot-title { font-weight: 600; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5d5d60; }
 
+.slot-enable { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.enable-label { font-size: 10px; font-weight: 700; color: var(--text-dim); }
+.slot-enable:has(input:checked) .enable-label { color: var(--accent); }
+
 .status-badge {
   display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 500;
   padding: 3px 8px; border-radius: 3px; background: #e7e7ea; color: #5d5d60;

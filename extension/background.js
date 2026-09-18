@@ -19,18 +19,37 @@ async function handleMessage(msg, sender) {
     case "START":
       return startAutomation(msg.slots);
     case "STOP":
-      return stopAutomation("사용자가 중지를 눌렀습니다");
-    case "FETCH_STATIONS":
-      return fetchStations();
+      return stopEverything();
+    case "START_FETCH_STATIONS":
+      return startFetchStations(msg.date, msg.slotIndex);
+    case "GET_FETCH_STATUS":
+      return getFetchStatus();
+    case "GET_RETURN_STATUS":
+      return getReturnStatus();
+    case "RETURN_DONE":
+      return setState({ returningToScreenA: false }).then(() => ({ ok: true }));
+    case "FETCH_STATIONS_RESULT":
+      return finishFetchStations(msg.result, msg.token);
+    case "FETCH_STATIONS_FAILED":
+      return failFetchStations(msg.reason, msg.token);
     case "GET_AUTOMATION_STATUS":
       return getAutomationStatus();
+    case "TRAIN_MATCHED":
+      return setSlotTrainTime(msg.slotIndex, msg.departTime, msg.arriveTime);
+    case "SEAT_APPLY_STARTED":
+      return setPendingTicket(msg.slotIndex, msg.ticket);
+    case "SEAT_APPLY_FAILED":
+      return setPendingTicket(msg.slotIndex, null);
     case "LOG":
       return addLog(msg.text);
     case "NO_MATCH":
       await addLog(`슬롯 ${msg.slotIndex + 1}: 조건에 맞는 열차 없음 — 자동화를 멈춥니다`);
       return stopAutomation(`슬롯 ${msg.slotIndex + 1}에 맞는 열차를 찾지 못했습니다`);
+    case "DUPLICATE_BOOKING":
+      await addLog(`슬롯 ${msg.slotIndex + 1}: 이미 예약된 구간으로 보여 자동화를 멈춥니다 (${msg.reason})`);
+      return stopAutomation(`슬롯 ${msg.slotIndex + 1}: 중복된 구간 — ${msg.reason}`);
     case "SLOT_DONE":
-      return handleSlotDone(msg.slotIndex);
+      return handleSlotDone(msg.slotIndex, msg.ticket);
     default:
       return null;
   }
@@ -38,7 +57,18 @@ async function handleMessage(msg, sender) {
 
 // ---------- State ----------
 
-const DEFAULT_STATE = { running: false, slots: [], currentSlotIndex: -1, logs: [], tabId: null };
+const DEFAULT_STATE = {
+  running: false,
+  slots: [],
+  currentSlotIndex: -1,
+  logs: [],
+  tabId: null,
+  fetchingStations: false,
+  fetchDate: null,
+  fetchSlotIndex: null,
+  fetchToken: 0,
+  returningToScreenA: false,
+};
 
 async function getState() {
   const { state } = await chrome.storage.session.get("state");
@@ -61,6 +91,11 @@ async function addLog(text) {
 // ---------- Automation control ----------
 
 async function startAutomation(rawSlots) {
+  const existing = await getState();
+  if (existing.fetchingStations) {
+    return { error: "역 목록을 읽어오는 중입니다. 잠시 후 다시 시도해주세요." };
+  }
+
   const tabs = await chrome.tabs.query({ url: `${SITE_ORIGIN}/*` });
   const tab = tabs[0];
   if (!tab) {
@@ -98,6 +133,15 @@ async function stopAutomation(reason) {
   return { ok: true };
 }
 
+// "중지" 버튼은 자동화뿐 아니라, 통신 실패 등으로 멈춰버린 역 목록 읽기 상태도
+// 함께 풀어준다 — 그게 없으면 한 번 걸리면 사용자가 되돌릴 방법이 없었다.
+async function stopEverything() {
+  const state = await getState();
+  if (state.running) await stopAutomation("사용자가 중지를 눌렀습니다");
+  if (state.fetchingStations) await failFetchStations("사용자가 중지를 눌렀습니다", state.fetchToken);
+  return { ok: true };
+}
+
 async function getAutomationStatus() {
   const state = await getState();
   if (!state.running) return { running: false };
@@ -105,15 +149,50 @@ async function getAutomationStatus() {
   return { running: true, currentSlot };
 }
 
-async function handleSlotDone(slotIndex) {
+// 화면A의 조회 결과 행("역명 10:00")에서 붙잡은 출발/도착 시간을 슬롯에 남겨둔다 —
+// 화면C의 잔여석 표에는 시간이 없는 경우가 많아, 완료 알림에는 이 값을 쓴다.
+async function setSlotTrainTime(slotIndex, departTime, arriveTime) {
   const state = await getState();
-  const slots = state.slots.map((s, i) => (i === slotIndex ? { ...s, status: "done" } : s));
+  const slots = state.slots.map((s, i) => (i === slotIndex ? { ...s, departTime, arriveTime } : s));
+  await setState({ slots });
+  return { ok: true };
+}
+
+// 좌석신청 성공은 alert 없이 곧바로 화면이 넘어가버릴 수 있어(실패는 화면C에 그대로
+// 남는다), 클릭 직전에 "이 티켓을 신청해뒀다"고 남겨두고, 화면C를 벗어난 채 다시
+// 로드된 페이지가 이걸 보고 성공으로 확정 짓는다.
+async function setPendingTicket(slotIndex, ticket) {
+  const state = await getState();
+  const slots = state.slots.map((s, i) => (i === slotIndex ? { ...s, pendingTicket: ticket } : s));
+  await setState({ slots });
+  return { ok: true };
+}
+
+function buildSuccessMessage(info) {
+  return [
+    "# :bell: 잔여석을 신청 완료했습니다. :bell:",
+    "## DTIS에 접속하여 신청완료를 꼭 확인해주세요.",
+    ":exclamation: 알림이 오류일 수 있습니다.",
+    "",
+    "---------------------------------------",
+    `탑승일자 : ${info.date}`,
+    `출발역 : ${info.from}`,
+    `도착역 : ${info.to}`,
+    `출발 시간 : ${info.departTime} ~ 도착시간 : ${info.arriveTime}`,
+    "---------------------------------------",
+  ].join("\n");
+}
+
+async function handleSlotDone(slotIndex, ticket) {
+  const state = await getState();
+  if (state.slots[slotIndex]?.status === "done") return { ok: true }; // 이미 처리됨(중복 신호) — 무시
+
+  const slots = state.slots.map((s, i) => (i === slotIndex ? { ...s, status: "done", pendingTicket: null } : s));
   await setState({ slots });
 
   const slot = slots[slotIndex];
-  await notifyAll(
-    `✅ 좌석 신청 완료: ${slot.date} ${slot.from} → ${slot.to} (${slot.ampm === "AM" ? "오전" : "오후"})`
-  );
+  const info = ticket || { date: slot.date, from: slot.from, to: slot.to, departTime: "-", arriveTime: "-" };
+  await notifyAll(buildSuccessMessage(info));
 
   const nextIndex = slotIndex + 1;
   if (nextIndex >= slots.length) {
@@ -128,25 +207,100 @@ async function handleSlotDone(slotIndex) {
   await setState({ slots: nextSlots, currentSlotIndex: nextIndex });
   await addLog(`슬롯 ${nextIndex + 1}로 이동 중`);
 
-  await goBackTwice(state.tabId);
-  // The page navigation above causes automate.js to re-inject and call
-  // checkAndAct() on its own, so no explicit "start" message is needed here.
+  await startReturnToScreenA(state.tabId);
+  // 화면A 도착은 content script가 스스로 판단하고, 그 뒤엔 매 페이지 로드마다
+  // checkAndAct()가 자동으로 다시 실행되므로 별도의 "start" 메시지가 필요 없다.
   return { ok: true };
 }
 
-async function fetchStations() {
+// ---------- Station list (F1: 역 목록 읽어오기) ----------
+// 날짜를 입력하고 "조회"만 누른 뒤, 그 결과 테이블에 실제로 나온 출발역/도착역만
+// 읽어온다(예약가능/확인 등 실제 예약 절차에는 들어가지 않으므로 화면A를 벗어나지
+// 않는다). automate.js의 checkFetchAndAct()가 조회를 수행하고
+// FETCH_STATIONS_RESULT로 결과를 보내온다.
+//
+// 진행 중에 사용자가 날짜를 다시 바꾸면 fetchToken을 올려서 새 요청으로 취급한다.
+// automate.js는 결과를 보낼 때 자신이 시작할 때 받은 token을 그대로 붙여 보내고,
+// 그 token이 최신 fetchToken과 다르면(=날짜가 또 바뀌어 낡은 요청이 됨) 무시한다.
+
+async function startFetchStations(date, slotIndex) {
+  const state = await getState();
+  if (state.running) {
+    return { error: "자동화 실행 중에는 역 목록을 다시 읽어올 수 없습니다." };
+  }
+
   const tabs = await chrome.tabs.query({ url: `${SITE_ORIGIN}/*` });
   const tab = tabs[0];
   if (!tab) {
     return { error: "사이트 페이지가 열려 있지 않습니다. 먼저 dtis.mil.kr 페이지를 열어주세요." };
   }
-  try {
-    const result = await chrome.tabs.sendMessage(tab.id, { type: "FETCH_STATIONS" });
-    if (!result) return { error: "역 목록을 읽어올 수 없습니다. 예약 화면(승차역/하차역 선택 화면)에서 다시 시도해주세요." };
-    return result;
-  } catch {
+
+  const token = (state.fetchToken || 0) + 1;
+  const slots = state.slots.map((s, i) => (i === slotIndex ? { ...s, stationsError: null } : s));
+  await setState({
+    fetchingStations: true,
+    fetchDate: date || null,
+    fetchSlotIndex: slotIndex,
+    fetchToken: token,
+    slots,
+  });
+  const delivered = await sendWithRetry(tab.id, { type: "FETCH_STATIONS_STARTED" });
+  if (!delivered) {
+    // 사이트가 마침 페이지 이동 중이라 콘텐츠 스크립트가 잠깐 없는 순간일 수 있어
+    // 재시도했지만 그래도 실패함 — "불러오는 중..."에 영원히 멈춰있지 않도록 바로 실패 처리.
+    await failFetchStations("사이트 페이지와 통신할 수 없습니다. 페이지를 새로고침한 뒤 다시 시도해주세요.", token);
     return { error: "사이트 페이지와 통신할 수 없습니다. 페이지를 새로고침한 뒤 다시 시도해주세요." };
   }
+  return { ok: true };
+}
+
+// 페이지가 느리게 로드되는 동안은 콘텐츠 스크립트가 아직 안 붙어있을 수 있으므로
+// 충분히 기다렸다가 재시도한다(최대 약 6초).
+async function sendWithRetry(tabId, message, attempts = 15, delayMs = 400) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await chrome.tabs.sendMessage(tabId, message);
+      return true;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return false;
+}
+
+async function getFetchStatus() {
+  const state = await getState();
+  if (!state.fetchingStations) return { fetching: false };
+  return { fetching: true, date: state.fetchDate, token: state.fetchToken };
+}
+
+async function finishFetchStations(result, token) {
+  const state = await getState();
+  if (state.fetchToken !== token) return { ok: true }; // 날짜가 또 바뀌어 낡은 결과가 됨 — 무시
+
+  const idx = state.fetchSlotIndex ?? 0;
+  const empty = result.stationsFrom.length === 0 && result.stationsTo.length === 0;
+  if (empty) {
+    return failFetchStations("조회된 목록이 없습니다.", token);
+  }
+
+  const slots = state.slots.map((s, i) =>
+    i === idx ? { ...s, stationsFrom: result.stationsFrom, stationsTo: result.stationsTo } : s
+  );
+  await setState({ fetchingStations: false, slots });
+  await addLog(`슬롯 ${idx + 1}: 역 목록을 읽어왔습니다 (출발역 ${result.stationsFrom.length}개, 도착역 ${result.stationsTo.length}개)`);
+  return { ok: true };
+}
+
+async function failFetchStations(reason, token) {
+  const state = await getState();
+  if (state.fetchToken !== token) return { ok: true }; // 낡은 요청의 실패 — 무시
+
+  const idx = state.fetchSlotIndex ?? 0;
+  const slots = state.slots.map((s, i) => (i === idx ? { ...s, stationsError: reason } : s));
+  await setState({ fetchingStations: false, slots });
+  await addLog(`슬롯 ${idx + 1}: 역 목록 읽어오기 실패: ${reason}`);
+  return { ok: true };
 }
 
 // ---------- Tab watching (F10: 탭 이탈 감지) ----------
@@ -177,20 +331,17 @@ async function onTabUpdated(tabId, changeInfo) {
 }
 
 // ---------- Back navigation (F8: 슬롯 전환) ----------
+// 브라우저의 실제 "뒤로가기"(chrome.tabs.goBack)는 사이트 화면의 "< 이전" 버튼과
+// 다르게 동작해 히스토리를 사이트 첫 페이지까지 거슬러 올라가버리는 문제가 있었다.
+// 그래서 대신 content script가 화면A에 도착할 때까지 실제 "이전" 버튼을 반복 클릭하게
+// 하고, background는 returningToScreenA 플래그로 그 진행 상태만 들고 있는다.
 
-function goBackTwice(tabId) {
-  return goBackAndWait(tabId).then(() => goBackAndWait(tabId));
+async function startReturnToScreenA(tabId) {
+  await setState({ returningToScreenA: true });
+  await sendWithRetry(tabId, { type: "CONTINUE_RETURN" });
 }
 
-function goBackAndWait(tabId) {
-  return new Promise((resolve) => {
-    const listener = (id, info) => {
-      if (id === tabId && info.status === "complete") {
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
-      }
-    };
-    chrome.tabs.onUpdated.addListener(listener);
-    chrome.tabs.goBack(tabId);
-  });
+async function getReturnStatus() {
+  const state = await getState();
+  return { returning: !!state.returningToScreenA };
 }

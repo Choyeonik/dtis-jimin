@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>취소표 자동 신청</title>
+<title>잔여석 신청</title>
 <link rel="stylesheet" href="sidepanel.css" />
 </head>
 <body>
@@ -12,8 +12,7 @@
   <div class="header-title">
     <div class="header-icon">🚄</div>
     <div>
-      <div class="header-name">취소표 자동 신청</div>
-      <div class="header-sub">DTIS 좌석 자동화</div>
+      <div class="header-name">잔여석 신청</div>
     </div>
   </div>
   <div id="run-badge" class="badge">
@@ -24,20 +23,20 @@
 
 <main class="content">
 
-  <div class="fetch-stations">
-    <button id="fetch-stations-btn" type="button" class="btn btn-outline">🔄 역 목록 읽어오기</button>
-    <div id="fetch-stations-hint" class="hint">대상 사이트 탭이 열려 있어야 합니다</div>
-  </div>
-
   <section class="slot" id="slot-0" data-index="0">
     <div class="slot-header">
-      <span class="slot-title">슬롯 1</span>
+      <label class="slot-enable">
+        <input type="checkbox" data-field="enabled" />
+        <span class="slot-title">첫 번째 신청</span>
+        <span class="enable-label" data-field="enabled-label">ON</span>
+      </label>
       <span class="status-badge" data-status-for="0">대기 전</span>
     </div>
     <label class="field">
       <span class="field-label">탑승일자</span>
       <input type="date" class="date-input" data-field="date" />
     </label>
+    <div class="hint" data-field="stations-hint">날짜를 선택하면 자동으로 역 목록을 불러옵니다</div>
     <div class="field-row">
       <label class="field">
         <span class="field-label">출발역</span>
@@ -49,7 +48,7 @@
       </label>
     </div>
     <div class="field">
-      <span class="field-label">시간대</span>
+      <span class="field-label">출발 시간</span>
       <div class="ampm-toggle">
         <label class="ampm-option"><input type="radio" name="ampm-0" value="AM" /> 오전</label>
         <label class="ampm-option"><input type="radio" name="ampm-0" value="PM" /> 오후</label>
@@ -59,13 +58,18 @@
 
   <section class="slot" id="slot-1" data-index="1">
     <div class="slot-header">
-      <span class="slot-title">슬롯 2</span>
+      <label class="slot-enable">
+        <input type="checkbox" data-field="enabled" />
+        <span class="slot-title">두 번째 신청</span>
+        <span class="enable-label" data-field="enabled-label">ON</span>
+      </label>
       <span class="status-badge" data-status-for="1">대기 전</span>
     </div>
     <label class="field">
       <span class="field-label">탑승일자</span>
       <input type="date" class="date-input" data-field="date" />
     </label>
+    <div class="hint" data-field="stations-hint">날짜를 선택하면 자동으로 역 목록을 불러옵니다</div>
     <div class="field-row">
       <label class="field">
         <span class="field-label">출발역</span>
@@ -77,7 +81,7 @@
       </label>
     </div>
     <div class="field">
-      <span class="field-label">시간대</span>
+      <span class="field-label">출발 시간</span>
       <div class="ampm-toggle">
         <label class="ampm-option"><input type="radio" name="ampm-1" value="AM" /> 오전</label>
         <label class="ampm-option"><input type="radio" name="ampm-1" value="PM" /> 오후</label>
