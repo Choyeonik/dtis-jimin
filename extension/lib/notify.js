@@ -1,17 +1,25 @@
-import { DISCORD_WEBHOOK_URL, KAKAO_ACCESS_TOKEN } from "../config.js";
+import { DISCORD_WEBHOOK_URL_SUCCESS, DISCORD_WEBHOOK_URL_STOP, KAKAO_ACCESS_TOKEN } from "../config.js";
+
+// 디스코드는 웹훅 하나당 채널 하나라, "신청완료" 알림과 "중지" 알림을 다른
+// 채널로 보내려면 웹훅도 두 개로 나눠야 한다. 카카오("나에게 보내기")는 채널
+// 개념이 없어 두 경우 모두 그대로 보낸다.
 
 // 각 채널의 성공/실패를 결과로 돌려준다 — 예전엔 실패해도 조용히 넘어가서
 // "설정을 안 채웠는지, 진짜 전송이 실패한 건지" 알 방법이 없었다.
-export async function notifyAll(message) {
-  return Promise.all([sendDiscord(message), sendKakao(message)]);
+export async function notifySuccess(message) {
+  return Promise.all([sendDiscord(DISCORD_WEBHOOK_URL_SUCCESS, message), sendKakao(message)]);
 }
 
-async function sendDiscord(message) {
-  if (!DISCORD_WEBHOOK_URL) {
+export async function notifyStop(message) {
+  return Promise.all([sendDiscord(DISCORD_WEBHOOK_URL_STOP, message), sendKakao(message)]);
+}
+
+async function sendDiscord(webhookUrl, message) {
+  if (!webhookUrl) {
     return { channel: "디스코드", ok: false, detail: "웹훅 URL이 설정되지 않음(config.js)" };
   }
   try {
-    const res = await fetch(DISCORD_WEBHOOK_URL, {
+    const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content: message }),

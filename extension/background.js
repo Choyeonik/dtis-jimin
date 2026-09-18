@@ -1,4 +1,4 @@
-import { notifyAll } from "./lib/notify.js";
+import { notifySuccess, notifyStop } from "./lib/notify.js";
 
 const SITE_ORIGIN = "https://www.dtis.mil.kr";
 const MAX_LOGS = 50;
@@ -94,8 +94,7 @@ async function addLog(text) {
 
 // 실패(또는 설정 누락)를 실행 로그에 남겨서, 조용히 안 오는 알림의 원인을
 // "config.js 확인해야 함" 수준까지는 바로 알 수 있게 한다.
-async function notifyAllAndLog(message) {
-  const results = await notifyAll(message);
+async function logNotifyResults(results) {
   for (const r of results) {
     if (!r.ok) await addLog(`${r.channel} 알림 실패: ${r.detail}`);
   }
@@ -142,7 +141,7 @@ async function stopAutomation(reason) {
   await chrome.power.releaseKeepAwake();
   await setState({ running: false });
   await addLog(`자동화 중단: ${reason}`);
-  await notifyAllAndLog(`⏹️ 자동화가 중단되었습니다: ${reason}`);
+  await logNotifyResults(await notifyStop(`⏹️ 자동화가 중단되었습니다: ${reason}`));
   return { ok: true };
 }
 
@@ -236,7 +235,7 @@ async function handleSlotDone(slotIndex, ticket) {
 
   const slot = slots[slotIndex];
   const info = ticket || { date: slot.date, from: slot.from, to: slot.to, departTime: "-", arriveTime: "-" };
-  await notifyAllAndLog(buildSuccessMessage(info));
+  await logNotifyResults(await notifySuccess(buildSuccessMessage(info)));
 
   const nextIndex = slotIndex + 1;
   if (nextIndex >= slots.length) {
