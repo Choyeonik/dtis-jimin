@@ -3,8 +3,8 @@ const STATUS_LABEL = { idle: "대기 전", pending: "대기 전", running: "진�
 const els = {
   runBadge: document.getElementById("run-badge"),
   runLabel: document.getElementById("run-label"),
-  startBtn: document.getElementById("start-btn"),
-  stopBtn: document.getElementById("stop-btn"),
+  runToggleInput: document.getElementById("run-toggle-input"),
+  runToggleLabel: document.getElementById("run-toggle-label"),
   logList: document.getElementById("log-list"),
   slots: [0, 1].map((i) => ({
     section: document.getElementById(`slot-${i}`),
@@ -12,6 +12,7 @@ const els = {
     enabled: document.querySelector(`#slot-${i} [data-field="enabled"]`),
     enabledLabel: document.querySelector(`#slot-${i} [data-field="enabled-label"]`),
     date: document.querySelector(`#slot-${i} [data-field="date"]`),
+    queryBtn: document.querySelector(`#slot-${i} [data-field="query-btn"]`),
     stationsHint: document.querySelector(`#slot-${i} [data-field="stations-hint"]`),
     from: document.querySelector(`#slot-${i} [data-field="from"]`),
     to: document.querySelector(`#slot-${i} [data-field="to"]`),
@@ -34,7 +35,7 @@ const DEFAULT_STATE = () => ({
   running: false,
   fetchingStations: false,
   fetchSlotIndex: null,
-  slots: [DEFAULT_SLOT(), DEFAULT_SLOT()],
+  slots: [DEFAULT_SLOT(), { ...DEFAULT_SLOT(), enabled: false }],
   logs: [],
   currentSlotIndex: -1,
   tabId: null,
@@ -64,8 +65,7 @@ async function patchState(patch) {
 }
 
 function wireEvents() {
-  els.startBtn.addEventListener("click", onStart);
-  els.stopBtn.addEventListener("click", onStop);
+  els.runToggleInput.addEventListener("change", onRunToggle);
 
   // <input type="date">는 같은 날짜를 다시 골라도 "change"가 안 뜬다(값이 그대로라서).
   // 그래서 change로 조회를 못 트리거했을 때를 대비해, 포커스를 벗어날 때(blur) 값이
@@ -84,6 +84,12 @@ function wireEvents() {
     });
     slotEls.date.addEventListener("blur", () => {
       if (!changedSinceFocus && slotEls.date.value) onDateChanged(i, slotEls.date.value);
+    });
+    // 자동 조회가 가끔 안 눌릴 때를 위한 수동 조회 버튼.
+    slotEls.queryBtn.addEventListener("click", () => {
+      if (slotEls.date.value) onDateChanged(i, slotEls.date.value);
+      slotEls.queryBtn.classList.add("flash");
+      setTimeout(() => slotEls.queryBtn.classList.remove("flash"), 500);
     });
     slotEls.from.addEventListener("change", () => updateSlotField(i, "from", slotEls.from.value));
     slotEls.to.addEventListener("change", () => updateSlotField(i, "to", slotEls.to.value));
@@ -111,17 +117,29 @@ async function onDateChanged(index, date) {
   // 완료/실패 결과는 background가 state를 갱신하면 storage.onChanged → render()로 반영됨.
 }
 
+// 시작/중지가 하나의 토글로 합쳐져 있다 — 체크(켜짐)=시작, 해제(꺼짐)=중지.
+async function onRunToggle() {
+  if (els.runToggleInput.checked) {
+    const result = await onStart();
+    if (result?.error) els.runToggleInput.checked = false; // 시작 실패 — 원래 상태로 되돌림
+  } else {
+    await onStop();
+  }
+}
+
 async function onStart() {
   const state = await getState();
   const validSlots = state.slots.filter((s) => s.enabled && s.date && s.from && s.to);
   if (validSlots.length === 0) {
-    els.slots[0].stationsHint.textContent = "체크된 신청 중 날짜/출발역/도착역이 모두 입력된 것이 없습니다.";
-    return;
+    const error = "체크된 신청 중 날짜/출발역/도착역이 모두 입력된 것이 없습니다.";
+    els.slots[0].stationsHint.textContent = error;
+    return { error };
   }
   const result = await chrome.runtime.sendMessage({ type: "START", slots: validSlots });
   if (result?.error) {
     els.slots[0].stationsHint.textContent = result.error;
   }
+  return result;
 }
 
 async function onStop() {
@@ -133,8 +151,9 @@ function render(state) {
 
   els.runBadge.classList.toggle("running", state.running);
   els.runLabel.textContent = state.running ? "실행 중" : "대기 중";
-  els.startBtn.disabled = state.running || state.fetchingStations;
-  els.stopBtn.disabled = !state.running && !state.fetchingStations;
+  els.runToggleInput.checked = state.running;
+  els.runToggleInput.disabled = state.fetchingStations;
+  els.runToggleLabel.textContent = state.running ? "중지" : "시작";
 
   state.slots.forEach((slot, i) => {
     const slotEls = els.slots[i];
@@ -164,6 +183,7 @@ function render(state) {
 
     // 날짜는 역 목록을 읽어오는 중에도 바꿀 수 있어야 다시 조회를 트리거할 수 있다.
     slotEls.date.disabled = state.running;
+    slotEls.queryBtn.disabled = state.running;
     [slotEls.from, slotEls.to, ...slotEls.ampm].forEach((el) => (el.disabled = state.running || state.fetchingStations));
   });
 

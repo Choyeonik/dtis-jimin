@@ -1,6 +1,19 @@
+/* 경기천년제목체 — 설치돼 있으면 로컬 폰트를 바로 쓰고, 없는 환경을 위해
+   번들된 파일로도 대체된다. */
+@font-face {
+  font-family: "경기천년제목";
+  src: local("경기천년제목 Light"), url("assets/fonts/Title_Light.otf") format("opentype");
+  font-weight: 300;
+}
+@font-face {
+  font-family: "경기천년제목";
+  src: local("경기천년제목 Medium"), url("assets/fonts/Title_Medium.otf") format("opentype");
+  font-weight: 500;
+}
+
 :root {
   color-scheme: light dark;
-  --bg: #f2f2f3;
+  --bg: #e4e4e4;
   --bg-alt: #e9e9ea;
   --border: rgba(29, 31, 32, 0.16);
   --text: #1d1f20;
@@ -13,7 +26,8 @@
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  font-family: "경기천년제목", system-ui, sans-serif;
+  font-weight: 500;
   background: var(--bg);
   color: var(--text);
   display: flex;
@@ -33,8 +47,7 @@ body {
 
 .header-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .header-icon {
-  flex: none; width: 28px; height: 28px; background: var(--accent);
-  display: flex; align-items: center; justify-content: center; font-size: 15px; border-radius: 4px;
+  flex: none; width: 32px; height: 32px; object-fit: contain;
 }
 .header-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .header-sub { font-size: 10px; color: var(--text-dim); margin-top: 1px; }
@@ -57,13 +70,49 @@ body {
 
 .hint { font-size: 10.5px; color: var(--text-dim); margin-top: 5px; text-align: center; }
 
-.slot { border: 1px solid var(--border); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.slot {
+  background: #f8f8f8; border: 1px solid #202020; padding: 10px; display: flex; flex-direction: column; gap: 18px;
+  transition: background-color 0.3s ease;
+}
+/* 슬롯의 ON/OFF 토글이 켜져 있으면 슬롯 배경을 옅은 민트색으로 바꾼다. */
+.slot:has(.enable-toggle input:checked) { background: #E6F5EDFF; }
 .slot-header { display: flex; align-items: center; justify-content: space-between; }
 .slot-title { font-weight: 600; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5d5d60; }
 
-.slot-enable { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-.enable-label { font-size: 10px; font-weight: 700; color: var(--text-dim); }
-.slot-enable:has(input:checked) .enable-label { color: var(--accent); }
+.slot-title-row { display: flex; align-items: center; gap: 8px; }
+
+/* ON/OFF 토글 버튼. 박스 자체는 폭/높이가 고정이라(레이아웃 크기가 절대
+   안 바뀜) 슬롯 영역에 영향을 안 준다 — "작아짐"은 scale로만 표현.
+   - 누르는 동안(꺼짐→켜짐): 글자 1px 아래로 + 버튼·글자 살짝 작아짐.
+   - 떼면 켜짐: 눌렀을 때 작아진 그 크기를 그대로 유지, 배경만 민트색으로.
+   - 다시 눌러서 끌 때: 글자 1px 아래로(크기는 이미 작아진 채 유지),
+     뗄 때 흰 배경 + 원래 크기로 즉시 복귀. */
+.enable-toggle { cursor: pointer; }
+.enable-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.enable-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 20px;
+  border: 1px solid #202020;
+  border-radius: 4px;
+  background: #E6E5E5;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+/* 누르는 동안(:active) 또는 이미 켜진 상태(:has checked)면 작아진 크기 —
+   눌렀다 떼도 켜짐 상태면 계속 이 크기라 크기 변화가 없고(그대로 유지),
+   꺼짐으로 뗄 때만 아무 조건도 안 남아 원래 크기로 스냅백된다. */
+.enable-toggle:active .enable-btn,
+.enable-toggle:has(input:checked) .enable-btn { transform: scale(0.972, 0.95); }
+.enable-toggle:has(input:checked) .enable-btn { background: #A9E2C5; }
+
+.enable-text {
+  display: inline-block; font-size: 10px; font-weight: 700; color: #202020;
+  transition: font-size 0.12s ease, transform 0.12s ease;
+}
+.enable-toggle:active .enable-text,
+.enable-toggle:has(input:checked) .enable-text { font-size: 9px; }
+/* 누르고 있는 동안만 글자가 1px 내려간다(켜기/끄기 방향 상관없이 동일). */
+.enable-toggle:active .enable-text { transform: translateY(1px); }
 
 .status-badge {
   display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 500;
@@ -73,7 +122,7 @@ body {
 .status-badge.done { background: var(--accent); color: var(--accent-text); }
 
 .field { display: block; }
-.field-label { display: block; font-size: 11.5px; margin-bottom: 4px; color: rgba(29, 31, 32, 0.7); }
+.field-label { display: block; font-size: 11.5px; margin-bottom: 10px; padding-left: 4px; color: rgba(29, 31, 32, 0.7); }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
 .date-input, .select-input {
@@ -81,30 +130,108 @@ body {
   background: var(--bg-alt); border: 1px solid var(--border); border-radius: 4px;
 }
 
-.ampm-toggle { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
-.ampm-option {
-  flex: 1; text-align: center; padding: 6px 0; font-size: 12.5px; cursor: pointer;
-  border-left: 1px solid var(--border);
+.date-row { display: flex; gap: 8px; align-items: stretch; }
+.date-row .date-input { flex: 1; min-width: 0; }
+
+/* 자동 조회가 가끔 안 눌릴 때를 위한 수동 조회 버튼. 누르면 초록색으로
+   바뀌면서 글자가 "조회"→체크(✓)로 디졸브 전환되고, 0.5초 뒤(스크립트가
+   .flash를 지우면) 다시 흰 배경 + "조회" 글자로 서서히 돌아온다. */
+.query-btn {
+  position: relative;
+  flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 48px;
+  border: 1px solid #202020;
+  border-radius: 4px;
+  background: #E6E5E5;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.25);
+  font-family: inherit; font-weight: 700; font-size: 12px; color: #202020;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.4s ease;
 }
-.ampm-option:first-child { border-left: none; }
-.ampm-option:has(input:checked) { background: var(--accent); color: var(--accent-text); }
+.query-btn:active { transform: scale(0.95); }
+.query-btn.flash { background: #6FCF7A; }
+.query-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.query-label {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.2s ease;
+}
+.query-label-check { opacity: 0; }
+.query-btn.flash .query-label-default { opacity: 0; }
+.query-btn.flash .query-label-check { opacity: 1; }
+
+.ampm-toggle { display: flex; }
+.ampm-option {
+  position: relative;
+  flex: 1; text-align: center; padding: 6px 0; font-size: 12.5px; cursor: pointer;
+}
+/* flex 폭이 딱 안 나눠떨어지면 서브픽셀 반올림 때문에 버튼 사이에 얇은 틈이
+   생길 수 있어, 뒤 버튼을 1px씩 겹쳐 틈을 없앤다. */
+.ampm-option:not(:first-child) { margin-left: -1px; }
+
+/* 안눌림/눌림 이미지를 각각 별도 레이어(::before/::after)로 겹쳐두고, 눌림
+   레이어의 opacity만 트랜지션을 줘서 두 이미지가 디졸브(크로스페이드)되게 한다. */
+.ampm-option::before,
+.ampm-option::after {
+  content: ""; position: absolute; inset: 0;
+  background-repeat: no-repeat; background-size: 100% 100%;
+}
+.ampm-option::after { opacity: 0; transition: opacity 0.2s ease; }
+.ampm-option:has(input:checked)::after { opacity: 1; }
+
+/* 왼쪽(오전)/가운데(오후)/오른쪽(둘 다) 위치에 맞춰 안눌림 상태 이미지를 배치 */
+.ampm-option:nth-child(1)::before { background-image: url("assets/axis-buttons/btn-left.png"); }
+.ampm-option:nth-child(2)::before { background-image: url("assets/axis-buttons/btn-mid.png"); }
+.ampm-option:nth-child(3)::before { background-image: url("assets/axis-buttons/btn-right.png"); }
+/* 눌린(선택된) 상태 이미지 */
+.ampm-option:nth-child(1)::after { background-image: url("assets/axis-buttons/pressed/counseling-left.png"); }
+.ampm-option:nth-child(2)::after { background-image: url("assets/axis-buttons/pressed/counseling-mid.png"); }
+.ampm-option:nth-child(3)::after { background-image: url("assets/axis-buttons/pressed/counseling-right.png"); }
+
+.ampm-label { position: relative; z-index: 1; display: inline-block; }
+/* 마우스 버튼을 누르고 있는 동안만 글자가 2px 내려간다(선택 여부와 무관). */
+.ampm-option:active .ampm-label { transform: translateY(2px); }
+
 .ampm-option input { position: absolute; opacity: 0; width: 0; height: 0; }
 
-.log-panel { border: 1px solid var(--border); padding: 10px; display: flex; flex-direction: column; gap: 7px; }
+.log-panel { background: #f8f8f8; border: 1px solid #202020; padding: 10px; display: flex; flex-direction: column; gap: 7px; }
 .log-title { font-weight: 600; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5d5d60; }
 .log-list { display: flex; flex-direction: column; gap: 5px; max-height: 160px; overflow-y: auto; }
 .log-entry { display: flex; gap: 8px; font-size: 12px; line-height: 1.4; }
 .log-time { flex: none; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .log-empty { font-size: 12px; color: var(--text-dim); font-style: italic; }
 
-.footer { flex: none; display: flex; gap: 7px; padding: 10px 14px; border-top: 1px solid var(--border); }
-.btn {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
-  cursor: pointer; font-weight: 600; font-size: 13.5px; padding: 9px 0; border-radius: 4px;
+.footer { flex: none; padding: 10px 14px; border-top: 1px solid var(--border); }
+
+/* 시작/중지 통합 토글 — 켜짐(체크됨) = 시작, 꺼짐 = 중지. 신청 ON/OFF 토글과
+   똑같은 방식: 박스 크기는 고정이고 scale로만 "작아짐"을 표현하며, 누르는
+   동안엔 글자가 1px 내려간다. */
+.run-toggle { display: block; cursor: pointer; }
+.run-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.run-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 40px;
+  border: 1px solid #202020;
+  border-radius: 4px;
+  background: #ffffff;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s ease, background 0.12s ease;
 }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
-.btn-primary { flex: 2; background: var(--accent); color: var(--accent-text); border: 1px solid var(--accent); }
+.run-toggle:active .run-btn,
+.run-toggle:has(input:checked) .run-btn { transform: scale(0.985, 0.95); }
+.run-toggle:has(input:checked) .run-btn { background: #A9E2C5; }
+.run-toggle:has(input:disabled) .run-btn { opacity: 0.45; cursor: not-allowed; }
+
+.run-text {
+  display: inline-block; font-weight: 600; font-size: 14.5px; color: #202020;
+  transition: font-size 0.12s ease, transform 0.12s ease;
+}
+.run-toggle:active .run-text,
+.run-toggle:has(input:checked) .run-text { font-size: 13.5px; }
+/* 누르고 있는 동안만 글자가 1px 내려간다. */
+.run-toggle:active .run-text { transform: translateY(1px); }
 
 @media (prefers-color-scheme: dark) {
   :root {

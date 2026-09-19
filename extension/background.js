@@ -3,6 +3,12 @@ import { notifySuccess, notifyStop } from "./lib/notify.js";
 const SITE_ORIGIN = "https://www.dtis.mil.kr";
 const MAX_LOGS = 50;
 
+function formatTimestamp() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 chrome.action.onClicked.addListener((tab) => {
   chrome.sidePanel.open({ windowId: tab.windowId });
 });
@@ -141,7 +147,7 @@ async function stopAutomation(reason) {
   await chrome.power.releaseKeepAwake();
   await setState({ running: false });
   await addLog(`자동화 중단: ${reason}`);
-  await logNotifyResults(await notifyStop(`⏹️ 자동화가 중단되었습니다: ${reason}`));
+  await logNotifyResults(await notifyStop(`${formatTimestamp()} ⏹️ 자동화가 중단되었습니다: ${reason}`));
   return { ok: true };
 }
 

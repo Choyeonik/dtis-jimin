@@ -10,7 +10,7 @@
 
 <header class="header">
   <div class="header-title">
-    <div class="header-icon">🚄</div>
+    <img class="header-icon" src="assets/header-icon.png" alt="" />
     <div>
       <div class="header-name">잔여석 신청</div>
     </div>
@@ -25,17 +25,22 @@
 
   <section class="slot" id="slot-0" data-index="0">
     <div class="slot-header">
-      <label class="slot-enable">
-        <input type="checkbox" data-field="enabled" />
+      <div class="slot-title-row">
         <span class="slot-title">첫 번째 신청</span>
-        <span class="enable-label" data-field="enabled-label">ON</span>
-      </label>
+        <label class="enable-toggle">
+          <input type="checkbox" data-field="enabled" />
+          <span class="enable-btn"><span class="enable-text" data-field="enabled-label">ON</span></span>
+        </label>
+      </div>
       <span class="status-badge" data-status-for="0">대기 전</span>
     </div>
-    <label class="field">
+    <div class="field">
       <span class="field-label">탑승일자</span>
-      <input type="date" class="date-input" data-field="date" />
-    </label>
+      <div class="date-row">
+        <input type="date" class="date-input" data-field="date" />
+        <button type="button" class="query-btn" data-field="query-btn"><span class="query-label query-label-default">조회</span><span class="query-label query-label-check">✓</span></button>
+      </div>
+    </div>
     <div class="hint" data-field="stations-hint">날짜를 선택하면 자동으로 역 목록을 불러옵니다</div>
     <div class="field-row">
       <label class="field">
@@ -50,26 +55,31 @@
     <div class="field">
       <span class="field-label">출발 시간</span>
       <div class="ampm-toggle">
-        <label class="ampm-option"><input type="radio" name="ampm-0" value="AM" /> 오전</label>
-        <label class="ampm-option"><input type="radio" name="ampm-0" value="PM" /> 오후</label>
-        <label class="ampm-option"><input type="radio" name="ampm-0" value="ALL" /> 둘 다</label>
+        <label class="ampm-option"><input type="radio" name="ampm-0" value="AM" /><span class="ampm-label">오전</span></label>
+        <label class="ampm-option"><input type="radio" name="ampm-0" value="PM" /><span class="ampm-label">오후</span></label>
+        <label class="ampm-option"><input type="radio" name="ampm-0" value="ALL" /><span class="ampm-label">둘 다</span></label>
       </div>
     </div>
   </section>
 
   <section class="slot" id="slot-1" data-index="1">
     <div class="slot-header">
-      <label class="slot-enable">
-        <input type="checkbox" data-field="enabled" />
+      <div class="slot-title-row">
         <span class="slot-title">두 번째 신청</span>
-        <span class="enable-label" data-field="enabled-label">ON</span>
-      </label>
+        <label class="enable-toggle">
+          <input type="checkbox" data-field="enabled" />
+          <span class="enable-btn"><span class="enable-text" data-field="enabled-label">ON</span></span>
+        </label>
+      </div>
       <span class="status-badge" data-status-for="1">대기 전</span>
     </div>
-    <label class="field">
+    <div class="field">
       <span class="field-label">탑승일자</span>
-      <input type="date" class="date-input" data-field="date" />
-    </label>
+      <div class="date-row">
+        <input type="date" class="date-input" data-field="date" />
+        <button type="button" class="query-btn" data-field="query-btn"><span class="query-label query-label-default">조회</span><span class="query-label query-label-check">✓</span></button>
+      </div>
+    </div>
     <div class="hint" data-field="stations-hint">날짜를 선택하면 자동으로 역 목록을 불러옵니다</div>
     <div class="field-row">
       <label class="field">
@@ -84,9 +94,9 @@
     <div class="field">
       <span class="field-label">출발 시간</span>
       <div class="ampm-toggle">
-        <label class="ampm-option"><input type="radio" name="ampm-1" value="AM" /> 오전</label>
-        <label class="ampm-option"><input type="radio" name="ampm-1" value="PM" /> 오후</label>
-        <label class="ampm-option"><input type="radio" name="ampm-1" value="ALL" /> 둘 다</label>
+        <label class="ampm-option"><input type="radio" name="ampm-1" value="AM" /><span class="ampm-label">오전</span></label>
+        <label class="ampm-option"><input type="radio" name="ampm-1" value="PM" /><span class="ampm-label">오후</span></label>
+        <label class="ampm-option"><input type="radio" name="ampm-1" value="ALL" /><span class="ampm-label">둘 다</span></label>
       </div>
     </div>
   </section>
@@ -101,8 +111,10 @@
 </main>
 
 <footer class="footer">
-  <button id="stop-btn" type="button" class="btn btn-outline" disabled>■ 중지</button>
-  <button id="start-btn" type="button" class="btn btn-primary">▶ 시작</button>
+  <label class="run-toggle">
+    <input type="checkbox" id="run-toggle-input" />
+    <span class="run-btn"><span class="run-text" id="run-toggle-label">시작</span></span>
+  </label>
 </footer>
 
 <script src="sidepanel.js"></script>
