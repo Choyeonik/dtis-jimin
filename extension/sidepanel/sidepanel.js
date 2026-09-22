@@ -5,6 +5,7 @@ const els = {
   runLabel: document.getElementById("run-label"),
   runToggleInput: document.getElementById("run-toggle-input"),
   runToggleLabel: document.getElementById("run-toggle-label"),
+  openSiteBtn: document.getElementById("open-site-btn"),
   logList: document.getElementById("log-list"),
   slots: [0, 1].map((i) => ({
     section: document.getElementById(`slot-${i}`),
@@ -66,6 +67,9 @@ async function patchState(patch) {
 
 function wireEvents() {
   els.runToggleInput.addEventListener("change", onRunToggle);
+  els.openSiteBtn.addEventListener("click", () => {
+    chrome.tabs.create({ url: "https://www.dtis.mil.kr/m/" });
+  });
 
   // <input type="date">는 같은 날짜를 다시 골라도 "change"가 안 뜬다(값이 그대로라서).
   // 그래서 change로 조회를 못 트리거했을 때를 대비해, 포커스를 벗어날 때(blur) 값이
