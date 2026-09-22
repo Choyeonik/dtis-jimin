@@ -194,23 +194,45 @@ function render(state) {
   renderLogs(state.logs);
 }
 
+// 역명은 사이트 조회 결과에서, 로그 문구는 사이트가 띄운 alert 메시지에서 오므로
+// 둘 다 이 확장이 통제할 수 없는 텍스트다 — innerHTML 대신 textContent로 넣어서
+// 사이트가 악성 HTML을 끼워 넣어도 태그로 해석되지 않게 한다.
 function populateSelect(select, options, selectedValue) {
   const current = Array.from(select.options).map((o) => o.value);
   const next = options ?? [];
   if (current.join("|") !== next.join("|")) {
-    select.innerHTML = next.map((st) => `<option value="${st}">${st}</option>`).join("");
+    select.innerHTML = "";
+    next.forEach((st) => {
+      const option = document.createElement("option");
+      option.value = st;
+      option.textContent = st;
+      select.appendChild(option);
+    });
   }
   if (selectedValue) select.value = selectedValue;
 }
 
 function renderLogs(logs) {
+  els.logList.innerHTML = "";
   if (!logs || logs.length === 0) {
-    els.logList.innerHTML = `<div class="log-empty">아직 기록이 없습니다</div>`;
+    const empty = document.createElement("div");
+    empty.className = "log-empty";
+    empty.textContent = "아직 기록이 없습니다";
+    els.logList.appendChild(empty);
     return;
   }
-  els.logList.innerHTML = logs
+  logs
     .slice()
     .reverse()
-    .map((entry) => `<div class="log-entry"><span class="log-time">${entry.time}</span><span>${entry.text}</span></div>`)
-    .join("");
+    .forEach((entry) => {
+      const row = document.createElement("div");
+      row.className = "log-entry";
+      const time = document.createElement("span");
+      time.className = "log-time";
+      time.textContent = entry.time;
+      const text = document.createElement("span");
+      text.textContent = entry.text;
+      row.append(time, text);
+      els.logList.appendChild(row);
+    });
 }
