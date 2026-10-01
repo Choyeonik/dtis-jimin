@@ -255,7 +255,7 @@ async function handleSlotDone(slotIndex, ticket) {
       await addLog(
         reply.ok
           ? `PC 자동 종료 예약됨 (${SHUTDOWN_DELAY_SECONDS / 60}분 후, 취소하려면 cmd에서 shutdown /a)`
-          : `PC 자동 종료 실패: ${reply.error} — native-host/install.bat을 실행했는지 확인하세요`
+          : `PC 자동 종료 실패: ${reply.error}`
       );
     }
     return { ok: true };
@@ -286,7 +286,10 @@ function requestShutdown() {
       resolve(reply);
     });
     port.onDisconnect.addListener(() =>
-      resolve({ ok: false, error: chrome.runtime.lastError?.message || "호스트와 연결이 끊김" })
+      resolve({
+        ok: false,
+        error: `${chrome.runtime.lastError?.message || "호스트와 연결이 끊김"} — native-host/install.bat을 실행했는지 확인하세요`,
+      })
     );
     port.postMessage({ type: "shutdown", delaySeconds: SHUTDOWN_DELAY_SECONDS });
   });

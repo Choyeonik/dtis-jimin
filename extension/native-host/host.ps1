@@ -31,8 +31,13 @@ $msg = Read-Message
 if ($msg -and $msg.type -eq "shutdown") {
     $delay = 0
     if ($msg.delaySeconds) { $delay = [int]$msg.delaySeconds }
-    Write-Message @{ ok = $true; delaySeconds = $delay }
-    shutdown.exe /s /t $delay
+    # 출력을 변수로 받아야 shutdown.exe의 메시지가 stdout(크롬과의 통신 채널)에 섞이지 않는다.
+    $output = (shutdown.exe /s /t $delay 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -eq 0) {
+        Write-Message @{ ok = $true; delaySeconds = $delay }
+    } else {
+        Write-Message @{ ok = $false; error = "shutdown 실패 (코드 $LASTEXITCODE): $output" }
+    }
 } else {
     Write-Message @{ ok = $false; error = "unknown message" }
 }
