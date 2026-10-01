@@ -254,7 +254,7 @@ async function handleSlotDone(slotIndex, ticket) {
       const reply = await requestShutdown();
       await addLog(
         reply.ok
-          ? `PC 자동 종료 예약됨 (${SHUTDOWN_DELAY_SECONDS}초 후, 취소하려면 cmd에서 shutdown /a)`
+          ? `PC 자동 종료 예약됨 (${SHUTDOWN_DELAY_SECONDS / 60}분 후, 취소하려면 cmd에서 shutdown /a)`
           : `PC 자동 종료 실패: ${reply.error} — native-host/install.bat을 실행했는지 확인하세요`
       );
     }
@@ -276,7 +276,7 @@ async function handleSlotDone(slotIndex, ticket) {
 // 네이티브 메시징 호스트(host.ps1)에 요청을 보내 shutdown 명령을 실행시킨다.
 // 바로 끄지 않고 잠깐 여유를 둬서, 그 사이 PC 앞에 있다면 shutdown /a로 취소할 수 있다.
 const SHUTDOWN_HOST = "com.dtis.shutdown";
-const SHUTDOWN_DELAY_SECONDS = 30;
+const SHUTDOWN_DELAY_SECONDS = 300;
 
 function requestShutdown() {
   return new Promise((resolve) => {
