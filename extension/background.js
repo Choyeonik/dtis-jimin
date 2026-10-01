@@ -249,6 +249,15 @@ async function handleSlotDone(slotIndex, ticket) {
     await chrome.power.releaseKeepAwake();
     await setState({ running: false });
     await addLog("모든 슬롯 신청 완료 — 자동화 종료");
+    // 두 번째 신청이 남아있는데 첫 번째 성공에서 꺼버리면 안 되므로, 전부 끝났을 때만 끈다.
+    if (state.shutdownOnSuccess) {
+      const reply = await requestShutdown();
+      await addLog(
+        reply.ok
+          ? `PC 자동 종료 예약됨 (${SHUTDOWN_DELAY_SECONDS}초 후, 취소하려면 cmd에서 shutdown /a)`
+          : `PC 자동 종료 실패: ${reply.error} — native-host/install.bat을 실행했는지 확인하세요`
+      );
+    }
     return { ok: true };
   }
 
@@ -260,6 +269,27 @@ async function handleSlotDone(slotIndex, ticket) {
   // 화면A 도착은 content script가 스스로 판단하고, 그 뒤엔 매 페이지 로드마다
   // checkAndAct()가 자동으로 다시 실행되므로 별도의 "start" 메시지가 필요 없다.
   return { ok: true };
+}
+
+// ---------- PC 자동 종료 ----------
+// 확장프로그램은 OS를 직접 끌 수 없어서, native-host/install.bat으로 등록한
+// 네이티브 메시징 호스트(host.ps1)에 요청을 보내 shutdown 명령을 실행시킨다.
+// 바로 끄지 않고 잠깐 여유를 둬서, 그 사이 PC 앞에 있다면 shutdown /a로 취소할 수 있다.
+const SHUTDOWN_HOST = "com.dtis.shutdown";
+const SHUTDOWN_DELAY_SECONDS = 30;
+
+function requestShutdown() {
+  return new Promise((resolve) => {
+    const port = chrome.runtime.connectNative(SHUTDOWN_HOST);
+    port.onMessage.addListener((reply) => {
+      port.disconnect();
+      resolve(reply);
+    });
+    port.onDisconnect.addListener(() =>
+      resolve({ ok: false, error: chrome.runtime.lastError?.message || "호스트와 연결이 끊김" })
+    );
+    port.postMessage({ type: "shutdown", delaySeconds: SHUTDOWN_DELAY_SECONDS });
+  });
 }
 
 // ---------- Station list (F1: 역 목록 읽어오기) ----------

@@ -1,17 +1,16 @@
-import { DISCORD_WEBHOOK_URL_SUCCESS, DISCORD_WEBHOOK_URL_STOP, KAKAO_ACCESS_TOKEN } from "../config.js";
+import { DISCORD_WEBHOOK_URL_SUCCESS, DISCORD_WEBHOOK_URL_STOP } from "../config.js";
 
 // 디스코드는 웹훅 하나당 채널 하나라, "신청완료" 알림과 "중지" 알림을 다른
-// 채널로 보내려면 웹훅도 두 개로 나눠야 한다. 카카오("나에게 보내기")는 채널
-// 개념이 없어 두 경우 모두 그대로 보낸다.
+// 채널로 보내려면 웹훅도 두 개로 나눠야 한다.
 
-// 각 채널의 성공/실패를 결과로 돌려준다 — 예전엔 실패해도 조용히 넘어가서
+// 전송 성공/실패를 결과로 돌려준다 — 예전엔 실패해도 조용히 넘어가서
 // "설정을 안 채웠는지, 진짜 전송이 실패한 건지" 알 방법이 없었다.
 export async function notifySuccess(message) {
-  return Promise.all([sendDiscord(DISCORD_WEBHOOK_URL_SUCCESS, message), sendKakao(message)]);
+  return [await sendDiscord(DISCORD_WEBHOOK_URL_SUCCESS, message)];
 }
 
 export async function notifyStop(message) {
-  return Promise.all([sendDiscord(DISCORD_WEBHOOK_URL_STOP, message), sendKakao(message)]);
+  return [await sendDiscord(DISCORD_WEBHOOK_URL_STOP, message)];
 }
 
 async function sendDiscord(webhookUrl, message) {
@@ -28,31 +27,5 @@ async function sendDiscord(webhookUrl, message) {
     return { channel: "디스코드", ok: true };
   } catch (err) {
     return { channel: "디스코드", ok: false, detail: `전송 실패 (${err})` };
-  }
-}
-
-async function sendKakao(message) {
-  if (!KAKAO_ACCESS_TOKEN) {
-    return { channel: "카카오", ok: false, detail: "액세스 토큰이 설정되지 않음(config.js)" };
-  }
-  try {
-    const templateObject = {
-      object_type: "text",
-      text: message,
-      link: { web_url: "https://www.dtis.mil.kr/m/", mobile_web_url: "https://www.dtis.mil.kr/m/" },
-    };
-    const body = new URLSearchParams({ template_object: JSON.stringify(templateObject) });
-    const res = await fetch("https://kapi.kakao.com/v2/api/talk/memo/default/send", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${KAKAO_ACCESS_TOKEN}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body,
-    });
-    if (!res.ok) return { channel: "카카오", ok: false, detail: `전송 실패 (HTTP ${res.status})` };
-    return { channel: "카카오", ok: true };
-  } catch (err) {
-    return { channel: "카카오", ok: false, detail: `전송 실패 (${err})` };
   }
 }

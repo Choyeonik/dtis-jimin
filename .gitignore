@@ -1,2 +1,3 @@
 extension/config.js
+extension/native-host/com.dtis.shutdown.json
 node_modules/

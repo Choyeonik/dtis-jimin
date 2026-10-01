@@ -6,6 +6,8 @@ const els = {
   runToggleInput: document.getElementById("run-toggle-input"),
   runToggleLabel: document.getElementById("run-toggle-label"),
   openSiteBtn: document.getElementById("open-site-btn"),
+  shutdownToggleInput: document.getElementById("shutdown-toggle-input"),
+  shutdownToggleLabel: document.getElementById("shutdown-toggle-label"),
   logList: document.getElementById("log-list"),
   slots: [0, 1].map((i) => ({
     section: document.getElementById(`slot-${i}`),
@@ -34,6 +36,7 @@ const DEFAULT_SLOT = () => ({
 });
 const DEFAULT_STATE = () => ({
   running: false,
+  shutdownOnSuccess: false,
   fetchingStations: false,
   fetchSlotIndex: null,
   slots: [DEFAULT_SLOT(), { ...DEFAULT_SLOT(), enabled: false }],
@@ -70,6 +73,9 @@ function wireEvents() {
   els.openSiteBtn.addEventListener("click", () => {
     chrome.tabs.create({ url: "https://www.dtis.mil.kr/m/" });
   });
+  els.shutdownToggleInput.addEventListener("change", () =>
+    patchState({ shutdownOnSuccess: els.shutdownToggleInput.checked })
+  );
 
   // <input type="date">는 같은 날짜를 다시 골라도 "change"가 안 뜬다(값이 그대로라서).
   // 그래서 change로 조회를 못 트리거했을 때를 대비해, 포커스를 벗어날 때(blur) 값이
@@ -158,6 +164,8 @@ function render(state) {
   els.runToggleInput.checked = state.running;
   els.runToggleInput.disabled = state.fetchingStations;
   els.runToggleLabel.textContent = state.running ? "중지" : "시작";
+  els.shutdownToggleInput.checked = !!state.shutdownOnSuccess;
+  els.shutdownToggleLabel.textContent = state.shutdownOnSuccess ? "ON" : "OFF";
 
   state.slots.forEach((slot, i) => {
     const slotEls = els.slots[i];
