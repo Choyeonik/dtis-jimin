@@ -1,4 +1,4 @@
-import { notifySuccess, notifyStop } from "./lib/notify.js";
+import { notifySuccess, notifyStop, editSuccessMessage } from "./lib/notify.js";
 
 const SITE_ORIGIN = "https://www.dtis.mil.kr";
 const MAX_LOGS = 50;
@@ -60,6 +60,8 @@ async function handleMessage(msg, sender) {
       return stopAutomation(`슬롯 ${msg.slotIndex + 1}: 중복된 구간 — ${msg.reason}`);
     case "SLOT_DONE":
       return handleSlotDone(msg.slotIndex, msg.ticket);
+    case "CANCEL_SHUTDOWN":
+      return cancelShutdown();
     default:
       return null;
   }
@@ -217,19 +219,32 @@ async function setPendingTicket(slotIndex, ticket) {
   return { ok: true };
 }
 
-function buildSuccessMessage(info) {
-  return [
+const DIVIDER = "---------------------------------------";
+
+function buildSuccessMessage(info, shutdownAt) {
+  const pad = (n) => String(n).padStart(2, "0");
+  const now = new Date();
+  const lines = [
     "# :bell: 잔여석을 신청 완료했습니다. :bell:",
     "## DTIS에 접속하여 신청완료를 꼭 확인해주세요.",
     ":exclamation: 알림이 오류일 수 있습니다.",
+    `## 신청 완료시각 ${pad(now.getMonth() + 1)}월 ${pad(now.getDate())}일 ${pad(now.getHours())}시 ${pad(now.getMinutes())}분`,
     "",
-    "---------------------------------------",
+    DIVIDER,
     `탑승일자 : ${info.date}`,
     `출발역 : ${info.from}`,
     `도착역 : ${info.to}`,
     `출발 시간 : ${info.departTime} ~ 도착시간 : ${info.arriveTime}`,
-    "---------------------------------------",
-  ].join("\n");
+    DIVIDER,
+  ];
+  if (shutdownAt) {
+    lines.push(
+      // <t:초:R>은 디스코드가 보는 사람 화면에서 "4분 후"처럼 남은 시간으로 바꿔 계속 갱신해준다.
+      `${pad(shutdownAt.getHours())}시 ${pad(shutdownAt.getMinutes())}분 ${pad(shutdownAt.getSeconds())}초에 PC가 자동종료 됩니다. (<t:${Math.floor(shutdownAt.getTime() / 1000)}:R>)`,
+      DIVIDER
+    );
+  }
+  return lines.join("\n");
 }
 
 async function handleSlotDone(slotIndex, ticket) {
@@ -241,21 +256,41 @@ async function handleSlotDone(slotIndex, ticket) {
 
   const slot = slots[slotIndex];
   const info = ticket || { date: slot.date, from: slot.from, to: slot.to, departTime: "-", arriveTime: "-" };
-  await logNotifyResults(await notifySuccess(buildSuccessMessage(info)));
-
   const nextIndex = slotIndex + 1;
-  if (nextIndex >= slots.length) {
+  const isLast = nextIndex >= slots.length;
+
+  // 두 번째 신청이 남아있는데 첫 번째 성공에서 꺼버리면 안 되므로, 전부 끝났을 때만 끈다.
+  // 알림에 종료 시각을 넣으려면 예약 성공 여부를 알아야 해서, 예약을 알림보다 먼저 한다.
+  let shutdownReply = null;
+  let shutdownAt = null;
+  if (isLast && state.shutdownOnSuccess) {
+    shutdownReply = await requestShutdown();
+    if (shutdownReply.ok) {
+      shutdownAt = new Date(Date.now() + SHUTDOWN_DELAY_SECONDS * 1000);
+      await setState({ shutdownAt: shutdownAt.getTime() }); // 사이드패널 카운트다운용
+    }
+  }
+
+  const message = buildSuccessMessage(info, shutdownAt);
+  const results = await notifySuccess(message);
+  await logNotifyResults(results);
+  // 종료를 취소하면 이 메시지의 타이머 줄을 "취소됨"으로 고쳐야 해서 id와 내용을 남겨둔다.
+  if (shutdownAt && results[0]?.messageId) {
+    await setState({ shutdownMessage: { id: results[0].messageId, content: message } });
+    // 꺼진 뒤엔 메시지를 고칠 수 없어서, 꺼지기 직전에 타이머를 지운다(안 지우면 "8분 전"처럼 계속 남음).
+    chrome.alarms.create(STRIP_TIMER_ALARM, { when: shutdownAt.getTime() - 15_000 });
+  }
+
+  if (isLast) {
     unwatchTab();
     await chrome.power.releaseKeepAwake();
     await setState({ running: false });
     await addLog("모든 슬롯 신청 완료 — 자동화 종료");
-    // 두 번째 신청이 남아있는데 첫 번째 성공에서 꺼버리면 안 되므로, 전부 끝났을 때만 끈다.
-    if (state.shutdownOnSuccess) {
-      const reply = await requestShutdown();
+    if (shutdownReply) {
       await addLog(
-        reply.ok
+        shutdownReply.ok
           ? `PC 자동 종료 예약됨 (${SHUTDOWN_DELAY_SECONDS / 60}분 후, 취소하려면 cmd에서 shutdown /a)`
-          : `PC 자동 종료 실패: ${reply.error}`
+          : `PC 자동 종료 실패: ${shutdownReply.error}`
       );
     }
     return { ok: true };
@@ -279,6 +314,39 @@ const SHUTDOWN_HOST = "com.dtis.shutdown";
 const SHUTDOWN_DELAY_SECONDS = 300;
 
 function requestShutdown() {
+  return sendToShutdownHost({ type: "shutdown", delaySeconds: SHUTDOWN_DELAY_SECONDS });
+}
+
+async function cancelShutdown() {
+  const reply = await sendToShutdownHost({ type: "cancel" });
+  if (reply.ok) {
+    await chrome.alarms.clear(STRIP_TIMER_ALARM);
+    const { shutdownMessage } = await getState();
+    await setState({ shutdownAt: null, shutdownMessage: null });
+    await addLog("PC 자동 종료를 취소했습니다");
+    // 타이머 줄을 지워야 디스코드에서 남은 시간 표시도 멈춘다.
+    if (shutdownMessage) {
+      const edited = shutdownMessage.content.replace(/^.*PC가 자동종료 됩니다.*$/m, "사용자가 PC 종료를 취소하였습니다.");
+      await logNotifyResults([await editSuccessMessage(shutdownMessage.id, edited)]);
+    }
+  } else {
+    await addLog(`PC 자동 종료 취소 실패: ${reply.error}`);
+  }
+  return reply;
+}
+
+const STRIP_TIMER_ALARM = "strip-shutdown-timer";
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== STRIP_TIMER_ALARM) return;
+  const { shutdownMessage } = await getState();
+  if (!shutdownMessage) return;
+  const content = shutdownMessage.content.replace(/ \(<t:\d+:R>\)/, "");
+  await setState({ shutdownMessage: { ...shutdownMessage, content } });
+  await logNotifyResults([await editSuccessMessage(shutdownMessage.id, content)]);
+});
+
+function sendToShutdownHost(message) {
   return new Promise((resolve) => {
     const port = chrome.runtime.connectNative(SHUTDOWN_HOST);
     port.onMessage.addListener((reply) => {
@@ -291,7 +359,7 @@ function requestShutdown() {
         error: `${chrome.runtime.lastError?.message || "호스트와 연결이 끊김"} — native-host/install.bat을 실행했는지 확인하세요`,
       })
     );
-    port.postMessage({ type: "shutdown", delaySeconds: SHUTDOWN_DELAY_SECONDS });
+    port.postMessage(message);
   });
 }
 

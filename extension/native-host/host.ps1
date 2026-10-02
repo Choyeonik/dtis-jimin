@@ -38,6 +38,13 @@ if ($msg -and $msg.type -eq "shutdown") {
     } else {
         Write-Message @{ ok = $false; error = "shutdown 실패 (코드 $LASTEXITCODE): $output" }
     }
+} elseif ($msg -and $msg.type -eq "cancel") {
+    $output = (shutdown.exe /a 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -eq 0) {
+        Write-Message @{ ok = $true }
+    } else {
+        Write-Message @{ ok = $false; error = "종료 취소 실패 (코드 $LASTEXITCODE): $output" }
+    }
 } else {
     Write-Message @{ ok = $false; error = "unknown message" }
 }

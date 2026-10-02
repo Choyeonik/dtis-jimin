@@ -4,7 +4,7 @@
   "version": "1.0.3",
   "description": "dtis.mil.kr 열차 승차권 취소표를 자동으로 잡아주는 개인용 확장프로그램",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt0Jh0N2qb6ThJfDXJEXxhdZaXcUBo9ozoXIThynsECRdNdR8Wbsy4v8wWbh3aXDoiQc3vvkQ88X1gKIFxEKUuwcVL36ouZMyR9J+Y0He/uKXYBX7uooHRKmjd4ktAHdhypJyXwdIkx/CGaNCPL203FFmThIYFdmxxSz/fHJaXpM5pnnmRccsXo3ZD4av6n9HvQclCU3IaeFYmzLnsl/hTCvguMNVUTqNtqzZifo2VJNXgJ417EsV/QU8jSQ2GoNa2fs+yAeC3ESaw+tnDnHAsJAxaJOOveqle1hG8Ps1EtaHiVosa8xw3mU8R+M8/ZTudTl4FfuJtWWaGsT9jbK9mwIDAQAB",
-  "permissions": ["sidePanel", "scripting", "tabs", "power", "storage", "nativeMessaging"],
+  "permissions": ["sidePanel", "scripting", "tabs", "power", "storage", "nativeMessaging", "alarms"],
   "host_permissions": [
     "https://www.dtis.mil.kr/*",
     "https://discord.com/*"

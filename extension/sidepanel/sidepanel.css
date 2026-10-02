@@ -134,6 +134,15 @@ body {
 .shutdown-toggle { flex: none; display: inline-flex; align-items: center; gap: 5px; }
 .shutdown-label { font-size: 10.5px; font-weight: 700; color: #202020; white-space: nowrap; }
 
+/* PC 자동 종료가 예약됐을 때만 헤더 아래에 뜨는 카운트다운 띠. */
+.shutdown-banner {
+  flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 14px; background: #fde2e1; color: #5c1a17;
+  border-bottom: 1px solid var(--border); font-size: 12.5px; font-weight: 700;
+}
+.shutdown-banner[hidden] { display: none; }
+.shutdown-countdown { font-size: 15px; font-variant-numeric: tabular-nums; margin-left: 4px; }
+
 .status-badge {
   display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 500;
   padding: 3px 8px; border-radius: 3px; background: #e7e7ea; color: #5d5d60;
@@ -144,6 +153,7 @@ body {
 .field { display: block; }
 .field-label { display: block; font-size: 11.5px; margin-bottom: 10px; padding-left: 4px; color: rgba(29, 31, 32, 0.7); }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.alt-station-stack { display: flex; flex-direction: column; gap: 6px; }
 
 .date-input, .select-input {
   width: 100%; min-height: 34px; padding: 6px 10px; font-size: 13.5px; color: var(--text);

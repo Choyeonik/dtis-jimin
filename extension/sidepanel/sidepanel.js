@@ -8,6 +8,9 @@ const els = {
   openSiteBtn: document.getElementById("open-site-btn"),
   shutdownToggleInput: document.getElementById("shutdown-toggle-input"),
   shutdownToggleLabel: document.getElementById("shutdown-toggle-label"),
+  shutdownBanner: document.getElementById("shutdown-banner"),
+  shutdownCountdown: document.getElementById("shutdown-countdown"),
+  shutdownCancelBtn: document.getElementById("shutdown-cancel-btn"),
   logList: document.getElementById("log-list"),
   slots: [0, 1].map((i) => ({
     section: document.getElementById(`slot-${i}`),
@@ -19,6 +22,8 @@ const els = {
     stationsHint: document.querySelector(`#slot-${i} [data-field="stations-hint"]`),
     from: document.querySelector(`#slot-${i} [data-field="from"]`),
     to: document.querySelector(`#slot-${i} [data-field="to"]`),
+    altFrom: Array.from(document.querySelectorAll(`#slot-${i} [data-field="altFrom"]`)),
+    altTo: Array.from(document.querySelectorAll(`#slot-${i} [data-field="altTo"]`)),
     ampm: document.querySelectorAll(`#slot-${i} input[name="ampm-${i}"]`),
   })),
 };
@@ -28,6 +33,8 @@ const DEFAULT_SLOT = () => ({
   date: "",
   from: "",
   to: "",
+  altFrom: ["", ""],
+  altTo: ["", ""],
   ampm: "AM",
   status: "idle",
   stationsFrom: [],
@@ -45,12 +52,15 @@ const DEFAULT_STATE = () => ({
   tabId: null,
 });
 
+let shutdownAt = null;
+
 init();
 
 async function init() {
   const state = await getState();
   render(state);
   wireEvents();
+  setInterval(renderShutdownCountdown, 1000);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "session" && changes.state) render(changes.state.newValue);
   });
@@ -76,6 +86,11 @@ function wireEvents() {
   els.shutdownToggleInput.addEventListener("change", () =>
     patchState({ shutdownOnSuccess: els.shutdownToggleInput.checked })
   );
+  els.shutdownCancelBtn.addEventListener("click", async () => {
+    els.shutdownCancelBtn.disabled = true;
+    await chrome.runtime.sendMessage({ type: "CANCEL_SHUTDOWN" }); // 결과는 실행 로그에 남는다
+    els.shutdownCancelBtn.disabled = false;
+  });
 
   // <input type="date">는 같은 날짜를 다시 골라도 "change"가 안 뜬다(값이 그대로라서).
   // 그래서 change로 조회를 못 트리거했을 때를 대비해, 포커스를 벗어날 때(blur) 값이
@@ -103,6 +118,11 @@ function wireEvents() {
     });
     slotEls.from.addEventListener("change", () => updateSlotField(i, "from", slotEls.from.value));
     slotEls.to.addEventListener("change", () => updateSlotField(i, "to", slotEls.to.value));
+    ["altFrom", "altTo"].forEach((field) =>
+      slotEls[field].forEach((input) =>
+        input.addEventListener("change", () => updateSlotField(i, field, slotEls[field].map((el) => el.value.trim())))
+      )
+    );
     slotEls.ampm.forEach((radio) =>
       radio.addEventListener("change", () => {
         if (radio.checked) updateSlotField(i, "ampm", radio.value);
@@ -138,8 +158,16 @@ async function onRunToggle() {
 }
 
 async function onStart() {
+  // 역 목록을 불러오면 드롭다운에 첫 역이 보이기만 하고 값은 저장되지 않는다(change가 안 뜸).
+  // 그래서 시작할 때 화면에 보이는 값을 그대로 저장해, 보이는 대로 실행되게 한다.
   const state = await getState();
-  const validSlots = state.slots.filter((s) => s.enabled && s.date && s.from && s.to);
+  const slots = state.slots.map((s, i) => ({
+    ...s,
+    from: els.slots[i]?.from.value || s.from,
+    to: els.slots[i]?.to.value || s.to,
+  }));
+  await patchState({ slots });
+  const validSlots = slots.filter((s) => s.enabled && s.date && s.from && s.to);
   if (validSlots.length === 0) {
     const error = "체크된 신청 중 날짜/출발역/도착역이 모두 입력된 것이 없습니다.";
     els.slots[0].stationsHint.textContent = error;
@@ -166,6 +194,8 @@ function render(state) {
   els.runToggleLabel.textContent = state.running ? "중지" : "시작";
   els.shutdownToggleInput.checked = !!state.shutdownOnSuccess;
   els.shutdownToggleLabel.textContent = state.shutdownOnSuccess ? "ON" : "OFF";
+  shutdownAt = state.shutdownAt ?? null;
+  renderShutdownCountdown();
 
   state.slots.forEach((slot, i) => {
     const slotEls = els.slots[i];
@@ -191,15 +221,30 @@ function render(state) {
     }
 
     if (document.activeElement !== slotEls.date) slotEls.date.value = slot.date;
+    ["altFrom", "altTo"].forEach((field) =>
+      slotEls[field].forEach((el, k) => {
+        if (document.activeElement !== el) el.value = slot[field]?.[k] ?? "";
+      })
+    );
     slotEls.ampm.forEach((radio) => (radio.checked = radio.value === slot.ampm));
 
     // 날짜는 역 목록을 읽어오는 중에도 바꿀 수 있어야 다시 조회를 트리거할 수 있다.
     slotEls.date.disabled = state.running;
     slotEls.queryBtn.disabled = state.running;
-    [slotEls.from, slotEls.to, ...slotEls.ampm].forEach((el) => (el.disabled = state.running || state.fetchingStations));
+    [slotEls.from, slotEls.to, ...slotEls.altFrom, ...slotEls.altTo, ...slotEls.ampm].forEach((el) => (el.disabled = state.running || state.fetchingStations));
   });
 
   renderLogs(state.logs);
+}
+
+function renderShutdownCountdown() {
+  const remainMs = shutdownAt ? shutdownAt - Date.now() : 0;
+  els.shutdownBanner.hidden = remainMs <= 0;
+  if (remainMs <= 0) return;
+  const totalSec = Math.ceil(remainMs / 1000);
+  const mm = String(Math.floor(totalSec / 60)).padStart(2, "0");
+  const ss = String(totalSec % 60).padStart(2, "0");
+  els.shutdownCountdown.textContent = `${mm}:${ss}`;
 }
 
 // 역명은 사이트 조회 결과에서, 로그 문구는 사이트가 띄운 alert 메시지에서 오므로

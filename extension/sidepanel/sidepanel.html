@@ -27,6 +27,11 @@
   </div>
 </header>
 
+<div class="shutdown-banner" id="shutdown-banner" hidden>
+  <span>PC 종료까지 <strong class="shutdown-countdown" id="shutdown-countdown">05:00</strong></span>
+  <button type="button" class="open-site-btn" id="shutdown-cancel-btn">종료 취소</button>
+</div>
+
 <main class="content">
 
   <section class="slot" id="slot-0" data-index="0">
@@ -57,6 +62,22 @@
         <span class="field-label">도착역</span>
         <select class="select-input" data-field="to"></select>
       </label>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <span class="field-label">허용 출발역 (선택)</span>
+        <div class="alt-station-stack">
+          <input type="text" class="select-input" data-field="altFrom" placeholder="예: 서울" />
+          <input type="text" class="select-input" data-field="altFrom" placeholder="예: 광명" />
+        </div>
+      </div>
+      <div class="field">
+        <span class="field-label">최소 하차역 (선택)</span>
+        <div class="alt-station-stack">
+          <input type="text" class="select-input" data-field="altTo" placeholder="예: 동대구" />
+          <input type="text" class="select-input" data-field="altTo" placeholder="예: 오송" />
+        </div>
+      </div>
     </div>
     <div class="field">
       <span class="field-label">출발 시간</span>
@@ -96,6 +117,22 @@
         <span class="field-label">도착역</span>
         <select class="select-input" data-field="to"></select>
       </label>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <span class="field-label">허용 출발역 (선택)</span>
+        <div class="alt-station-stack">
+          <input type="text" class="select-input" data-field="altFrom" placeholder="예: 서울" />
+          <input type="text" class="select-input" data-field="altFrom" placeholder="예: 광명" />
+        </div>
+      </div>
+      <div class="field">
+        <span class="field-label">최소 하차역 (선택)</span>
+        <div class="alt-station-stack">
+          <input type="text" class="select-input" data-field="altTo" placeholder="예: 동대구" />
+          <input type="text" class="select-input" data-field="altTo" placeholder="예: 오송" />
+        </div>
+      </div>
     </div>
     <div class="field">
       <span class="field-label">출발 시간</span>

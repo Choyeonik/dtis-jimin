@@ -292,7 +292,7 @@
       // 클릭 직전마다 승차역/하차역이 여전히 맞게 선택돼 있는지 다시 확인한다.
       await ensureStationsSelected(slot);
       document.querySelector('button[onclick*="fnRmndrSeat"]')?.click();
-      await sleep(randomBetween(260, 300));
+      await sleep(randomBetween(360, 500));
 
       // 표에 좌석이 떠도 승차역/하차역이 다른 구간(그 열차가 지나가는 다른 역 사이)
       // 좌석이 섞여 있을 수 있다 — 슬롯의 출발역/도착역과 일치하는 좌석만 고른다.
@@ -347,6 +347,10 @@
   }
 
   async function ensureStationsSelected(slot) {
+    // 승차/하차역을 고르면 표에 그 구간 좌석만 나와서, 허용 출발역/최소 하차역을 쓸 때는
+    // 비워 둔다 — 비워 두면 사이역까지 포함한 모든 구간 좌석이 나온다.
+    if (stationList(slot.altFrom).length > 0 || stationList(slot.altTo).length > 0) return;
+
     // 옵션이 아직 채워지기 전(1개=플레이스홀더 "선택"뿐)일 수 있어 잠깐 기다린다.
     await waitFor(() => (document.getElementById("sstation")?.options.length ?? 0) > 1, 1000);
     selectOptionByText(document.getElementById("sstation"), slot.from);
@@ -359,28 +363,52 @@
 
   // 잔여석예약 표의 컬럼 순서: 선택(0) 호차(1) 좌석(2) 출발역(3) 도착역(4).
   function findMatchingSeatButton(slot) {
-    return findSeatButtons().find((btn) => {
-      const cells = btn.closest("tr")?.querySelectorAll("td");
-      if (!cells || cells.length < 5) return false;
-      const from = cells[3].textContent.trim();
-      const to = cells[4].textContent.trim();
-      return from.startsWith(slot.from) && to.startsWith(slot.to);
-    });
+    const seats = findSeatButtons()
+      .map((btn) => {
+        const cells = btn.closest("tr")?.querySelectorAll("td");
+        if (!cells || cells.length < 5) return null;
+        return { btn, from: cells[3].textContent.trim(), to: cells[4].textContent.trim() };
+      })
+      .filter(Boolean);
+
+    const exact = seats.find((s) => s.from.startsWith(slot.from) && s.to.startsWith(slot.to));
+    if (exact) return exact.btn;
+
+    // 사이트 어디에도 노선의 역 순서가 없어서, 받아도 되는 승차/하차역은 사용자가 직접 적는다.
+    const altFroms = stationList(slot.altFrom);
+    const altTos = stationList(slot.altTo);
+    const fromOk = (s) => s.from.startsWith(slot.from) || altFroms.includes(cellStation(s.from));
+    const toOk = (s) => s.to.startsWith(slot.to) || altTos.includes(cellStation(s.to));
+    return seats.find((s) => fromOk(s) && toOk(s))?.btn ?? null;
+  }
+
+  function stationList(names) {
+    return (names ?? []).map(normalizeStation).filter(Boolean);
+  }
+
+  function cellStation(text) {
+    return normalizeStation(stationNameFromCellText(text));
+  }
+
+  function normalizeStation(name) {
+    return name.trim().replace(/역$/, "");
   }
 
   // 출발역/도착역 칸("역명 10:00")에서 실제 신청한 시간까지 뽑아 완료 알림에 쓴다.
   // 화면C의 잔여석 표에는 시간이 없는 경우가 많아, 화면A에서 미리 붙잡아둔
-  // slot.departTime/arriveTime(TRAIN_MATCHED로 저장됨)을 우선 쓴다.
+  // slot.departTime/arriveTime(TRAIN_MATCHED로 저장됨)을 우선 쓴다. 단 그 시간은 슬롯의
+  // 출발역/도착역 기준이라, 허용 출발역/최소 하차역 좌석을 잡았으면 쓰지 않는다.
   function extractTicketInfo(row, slot) {
     const cells = row?.querySelectorAll("td");
     const fromText = cells?.[3]?.textContent.trim() || slot.from;
     const toText = cells?.[4]?.textContent.trim() || slot.to;
+    const cellTime = (text) => text.match(/\d{1,2}:\d{2}/)?.[0];
     return {
       date: slot.date,
       from: stationNameFromCellText(fromText) || slot.from,
       to: stationNameFromCellText(toText) || slot.to,
-      departTime: slot.departTime || fromText.match(/\d{1,2}:\d{2}/)?.[0] || "-",
-      arriveTime: slot.arriveTime || toText.match(/\d{1,2}:\d{2}/)?.[0] || "-",
+      departTime: (fromText.startsWith(slot.from) && slot.departTime) || cellTime(fromText) || "-",
+      arriveTime: (toText.startsWith(slot.to) && slot.arriveTime) || cellTime(toText) || "-",
     };
   }
 
