@@ -154,6 +154,21 @@
 </main>
 
 <footer class="footer">
+  <div class="schedule-row">
+    <span class="shutdown-label">예약 시작</span>
+    <div class="schedule-input-wrap">
+      <input type="datetime-local" class="date-input" id="schedule-input" />
+      <button type="button" class="open-site-btn schedule-picker-btn" id="schedule-picker-btn">열기</button>
+    </div>
+    <div class="schedule-toggle-wrap">
+      <label class="enable-toggle">
+        <input type="checkbox" id="schedule-toggle-input" />
+        <span class="enable-btn schedule-btn"><span class="enable-text" id="schedule-toggle-label">예약 시작</span></span>
+      </label>
+      <span class="schedule-on" id="schedule-on">예약 ON</span>
+    </div>
+  </div>
+  <div class="hint" id="schedule-hint" hidden></div>
   <label class="run-toggle">
     <input type="checkbox" id="run-toggle-input" />
     <span class="run-btn"><span class="run-text" id="run-toggle-label">시작</span></span>

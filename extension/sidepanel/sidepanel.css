@@ -129,6 +129,7 @@ body {
   transition: transform 0.12s ease;
 }
 .open-site-btn:active { transform: scale(0.95); }
+.open-site-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* 헤더의 "자동 종료" 토글 — 버튼 모양은 신청 ON/OFF(.enable-toggle) 그대로 쓴다. */
 .shutdown-toggle { flex: none; display: inline-flex; align-items: center; gap: 5px; }
@@ -233,7 +234,28 @@ body {
 .log-time { flex: none; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .log-empty { font-size: 12px; color: var(--text-dim); font-style: italic; }
 
-.footer { flex: none; padding: 10px 14px; border-top: 1px solid var(--border); }
+.footer { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.footer .hint { margin-top: 0; }
+
+.schedule-row { display: flex; align-items: center; gap: 8px; }
+/* "열기/확인" 버튼을 입력칸 안쪽 오른쪽(원래 캘린더 아이콘 자리)에 겹쳐 놓는다. */
+.schedule-input-wrap { position: relative; flex: 1; min-width: 0; }
+.schedule-input-wrap .date-input { padding-right: 52px; }
+.schedule-picker-btn { position: absolute; right: 5px; top: 0; bottom: 0; margin: auto 0; }
+/* 캘린더 아이콘 대신 옆의 "열기/확인" 버튼으로 캘린더를 연다. */
+#schedule-input::-webkit-calendar-picker-indicator { display: none; }
+.schedule-btn { width: 58px; } /* "예약 시작"/"예약 안함"이 기본 폭(36px)에 안 들어가서 */
+/* ON 글씨는 정렬 계산에서 빼고(absolute) 버튼 바로 아래에 띄운다 — 같이 묶어 가운데
+   정렬하면 버튼이 입력칸보다 위로 치우친다. 그 대신 줄 아래쪽에 ON 글씨 자리를 비워둔다. */
+.schedule-row { padding-bottom: 12px; }
+.schedule-toggle-wrap { flex: none; position: relative; display: flex; }
+.schedule-toggle-wrap .enable-toggle { display: flex; }
+/* 예약 중일 때만 보인다. display 대신 visibility로 숨겨서, 켜고 끌 때 줄 높이가 안 변한다. */
+.schedule-on {
+  position: absolute; top: 100%; left: 0; right: 0; margin-top: 2px; text-align: center;
+  font-size: 10px; font-weight: 700; color: #1f9d55; white-space: nowrap; visibility: hidden;
+}
+.schedule-on.active { visibility: visible; }
 
 /* 시작/중지 통합 토글 — 켜짐(체크됨) = 시작, 꺼짐 = 중지. 신청 ON/OFF 토글과
    똑같은 방식: 박스 크기는 고정이고 scale로만 "작아짐"을 표현하며, 누르는

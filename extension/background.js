@@ -62,6 +62,10 @@ async function handleMessage(msg, sender) {
       return handleSlotDone(msg.slotIndex, msg.ticket);
     case "CANCEL_SHUTDOWN":
       return cancelShutdown();
+    case "SCHEDULE_START":
+      return scheduleStart(msg.at);
+    case "CANCEL_SCHEDULED_START":
+      return cancelScheduledStart();
     default:
       return null;
   }
@@ -125,7 +129,18 @@ async function startAutomation(rawSlots) {
   const slots = rawSlots.map((s, index) => ({ ...s, index, status: "pending" }));
   slots[0].status = "running";
 
-  await setState({ running: true, slots, currentSlotIndex: 0, logs: [], tabId: tab.id });
+  // 직접 시작했으면 걸려 있던 예약 시작은 필요 없다 — 나중에 알람이 또 시작시키지 않게 지운다.
+  await chrome.alarms.clear(SCHEDULED_START_ALARM);
+  // startedAt: 신청완료 알림의 "실행 시작시각/걸린 시간" 기준 — 두 번째 신청도 이 시각부터 잰다.
+  await setState({
+    running: true,
+    slots,
+    currentSlotIndex: 0,
+    logs: [],
+    tabId: tab.id,
+    startedAt: Date.now(),
+    scheduledStartAt: null,
+  });
 
   await chrome.power.requestKeepAwake("system");
   watchTab(tab.id);
@@ -152,6 +167,52 @@ async function stopAutomation(reason) {
   await logNotifyResults(await notifyStop(`${formatTimestamp()} ⏹️ 자동화가 중단되었습니다: ${reason}`));
   return { ok: true };
 }
+
+// ---------- 예약 시작 ----------
+// 사이드패널에서 정한 시각에 chrome.alarms로 깨어나 시작 버튼을 누른 것과 똑같이 실행한다.
+// 알람은 서비스 워커가 잠들어 있어도 깨워주지만, PC가 절전모드에 들어가면 그 시각에
+// 못 깨어나므로 예약해둔 동안은 절전을 막아둔다.
+const SCHEDULED_START_ALARM = "scheduled-start";
+
+async function scheduleStart(at) {
+  const state = await getState();
+  if (state.running) return { error: "이미 실행 중입니다." };
+  await chrome.alarms.create(SCHEDULED_START_ALARM, { when: at });
+  await setState({ scheduledStartAt: at });
+  chrome.power.requestKeepAwake("system");
+  const d = new Date(at);
+  const pad = (n) => String(n).padStart(2, "0");
+  await addLog(`예약 시작 설정 — ${d.getMonth() + 1}월 ${d.getDate()}일 ${pad(d.getHours())}:${pad(d.getMinutes())}에 자동으로 시작합니다`);
+  return { ok: true };
+}
+
+async function cancelScheduledStart() {
+  await chrome.alarms.clear(SCHEDULED_START_ALARM);
+  const state = await setState({ scheduledStartAt: null });
+  if (!state.running) chrome.power.releaseKeepAwake();
+  await addLog("예약 시작을 취소했습니다");
+  return { ok: true };
+}
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== SCHEDULED_START_ALARM) return;
+  const state = await setState({ scheduledStartAt: null });
+  if (state.running) return;
+
+  const validSlots = state.slots.filter((s) => s.enabled && s.date && s.from && s.to);
+  const result = validSlots.length
+    ? await startAutomation(validSlots)
+    : { error: "체크된 신청 중 날짜/출발역/도착역이 모두 입력된 것이 없습니다." };
+
+  if (result?.error) {
+    chrome.power.releaseKeepAwake();
+    await addLog(`예약 시작 실패: ${result.error}`);
+    // 예약은 자리를 비울 때 쓰는 기능이라, 실패도 디스코드로 알린다.
+    await logNotifyResults(await notifyStop(`${formatTimestamp()} ⏰ 예약 시작에 실패했습니다: ${result.error}`));
+  } else {
+    await addLog("예약한 시각이 되어 자동으로 시작했습니다");
+  }
+});
 
 // "중지" 버튼은 자동화뿐 아니라, 통신 실패 등으로 멈춰버린 역 목록 읽기 상태도
 // 함께 풀어준다 — 그게 없으면 한 번 걸리면 사용자가 되돌릴 방법이 없었다.
@@ -221,22 +282,36 @@ async function setPendingTicket(slotIndex, ticket) {
 
 const DIVIDER = "---------------------------------------";
 
-function buildSuccessMessage(info, shutdownAt) {
+function formatElapsed(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return h > 0 ? `${h}시간 ${m}분 ${s}초` : `${m}분 ${s}초`;
+}
+
+function buildSuccessMessage(info, shutdownAt, startedAt) {
   const pad = (n) => String(n).padStart(2, "0");
+  const fmt = (d) => `${pad(d.getMonth() + 1)}월 ${pad(d.getDate())}일 ${pad(d.getHours())}시 ${pad(d.getMinutes())}분`;
   const now = new Date();
   const lines = [
     "# :bell: 잔여석을 신청 완료했습니다. :bell:",
     "## DTIS에 접속하여 신청완료를 꼭 확인해주세요.",
     ":exclamation: 알림이 오류일 수 있습니다.",
-    `## 신청 완료시각 ${pad(now.getMonth() + 1)}월 ${pad(now.getDate())}일 ${pad(now.getHours())}시 ${pad(now.getMinutes())}분`,
+    `## 신청 완료시각 ${fmt(now)}`,
+  ];
+  if (startedAt) {
+    lines.push(`## 실행 시작시각 ${fmt(new Date(startedAt))}`, `## 걸린 시간 ${formatElapsed(now - startedAt)}`);
+  }
+  lines.push(
     "",
     DIVIDER,
     `탑승일자 : ${info.date}`,
     `출발역 : ${info.from}`,
     `도착역 : ${info.to}`,
     `출발 시간 : ${info.departTime} ~ 도착시간 : ${info.arriveTime}`,
-    DIVIDER,
-  ];
+    DIVIDER
+  );
   if (shutdownAt) {
     lines.push(
       // <t:초:R>은 디스코드가 보는 사람 화면에서 "4분 후"처럼 남은 시간으로 바꿔 계속 갱신해준다.
@@ -271,7 +346,7 @@ async function handleSlotDone(slotIndex, ticket) {
     }
   }
 
-  const message = buildSuccessMessage(info, shutdownAt);
+  const message = buildSuccessMessage(info, shutdownAt, state.startedAt);
   const results = await notifySuccess(message);
   await logNotifyResults(results);
   // 종료를 취소하면 이 메시지의 타이머 줄을 "취소됨"으로 고쳐야 해서 id와 내용을 남겨둔다.

@@ -11,6 +11,12 @@ const els = {
   shutdownBanner: document.getElementById("shutdown-banner"),
   shutdownCountdown: document.getElementById("shutdown-countdown"),
   shutdownCancelBtn: document.getElementById("shutdown-cancel-btn"),
+  scheduleInput: document.getElementById("schedule-input"),
+  scheduleToggleInput: document.getElementById("schedule-toggle-input"),
+  scheduleToggleLabel: document.getElementById("schedule-toggle-label"),
+  scheduleHint: document.getElementById("schedule-hint"),
+  schedulePickerBtn: document.getElementById("schedule-picker-btn"),
+  scheduleOn: document.getElementById("schedule-on"),
   logList: document.getElementById("log-list"),
   slots: [0, 1].map((i) => ({
     section: document.getElementById(`slot-${i}`),
@@ -53,6 +59,13 @@ const DEFAULT_STATE = () => ({
 });
 
 let shutdownAt = null;
+let scheduleError = null;
+let pickerOpen = false;
+
+function setPickerOpen(open) {
+  pickerOpen = open;
+  els.schedulePickerBtn.textContent = open ? "확인" : "열기";
+}
 
 init();
 
@@ -90,6 +103,28 @@ function wireEvents() {
     els.shutdownCancelBtn.disabled = true;
     await chrome.runtime.sendMessage({ type: "CANCEL_SHUTDOWN" }); // 결과는 실행 로그에 남는다
     els.shutdownCancelBtn.disabled = false;
+  });
+  els.scheduleToggleInput.addEventListener("change", onScheduleToggle);
+  // 캘린더 아이콘을 숨기고 "열기/확인" 버튼 하나로 연다/닫는다. 닫는 건 Chrome이 팝업
+  // 바깥을 누르면 알아서 닫아주는 걸 이용한다 — 버튼을 누르는 것 자체가 바깥 클릭이다.
+  els.schedulePickerBtn.addEventListener("click", () => {
+    if (pickerOpen) {
+      els.scheduleInput.blur();
+      setPickerOpen(false);
+      return;
+    }
+    els.scheduleInput.focus();
+    try {
+      els.scheduleInput.showPicker();
+      setPickerOpen(true);
+    } catch {
+      // 비활성 상태 등으로 열 수 없으면 그대로 둔다.
+    }
+  });
+  // 버튼이 아닌 다른 곳을 눌러 캘린더가 닫힌 경우에도 버튼 글자를 "열기"로 되돌린다.
+  // (버튼을 눌러 생긴 blur는 위 클릭 처리에 맡긴다 — 여기서 먼저 닫힘 처리하면 클릭이 다시 열어버림)
+  els.scheduleInput.addEventListener("blur", (e) => {
+    if (e.relatedTarget !== els.schedulePickerBtn) setPickerOpen(false);
   });
 
   // <input type="date">는 같은 날짜를 다시 골라도 "change"가 안 뜬다(값이 그대로라서).
@@ -157,9 +192,11 @@ async function onRunToggle() {
   }
 }
 
-async function onStart() {
-  // 역 목록을 불러오면 드롭다운에 첫 역이 보이기만 하고 값은 저장되지 않는다(change가 안 뜸).
-  // 그래서 시작할 때 화면에 보이는 값을 그대로 저장해, 보이는 대로 실행되게 한다.
+const NO_VALID_SLOT = "체크된 신청 중 날짜/출발역/도착역이 모두 입력된 것이 없습니다.";
+
+// 역 목록을 불러오면 드롭다운에 첫 역이 보이기만 하고 값은 저장되지 않는다(change가 안 뜸).
+// 그래서 시작(또는 예약)할 때 화면에 보이는 값을 그대로 저장해, 보이는 대로 실행되게 한다.
+async function saveVisibleSlots() {
   const state = await getState();
   const slots = state.slots.map((s, i) => ({
     ...s,
@@ -167,11 +204,14 @@ async function onStart() {
     to: els.slots[i]?.to.value || s.to,
   }));
   await patchState({ slots });
-  const validSlots = slots.filter((s) => s.enabled && s.date && s.from && s.to);
+  return slots.filter((s) => s.enabled && s.date && s.from && s.to);
+}
+
+async function onStart() {
+  const validSlots = await saveVisibleSlots();
   if (validSlots.length === 0) {
-    const error = "체크된 신청 중 날짜/출발역/도착역이 모두 입력된 것이 없습니다.";
-    els.slots[0].stationsHint.textContent = error;
-    return { error };
+    els.slots[0].stationsHint.textContent = NO_VALID_SLOT;
+    return { error: NO_VALID_SLOT };
   }
   const result = await chrome.runtime.sendMessage({ type: "START", slots: validSlots });
   if (result?.error) {
@@ -182,6 +222,38 @@ async function onStart() {
 
 async function onStop() {
   await chrome.runtime.sendMessage({ type: "STOP" });
+}
+
+// 예약 시작 — 켜면 background가 그 시각에 알람을 걸어두고, 시각이 되면 시작 버튼을
+// 누른 것과 똑같이 실행한다(사이드패널이 닫혀 있어도 됨).
+async function onScheduleToggle() {
+  scheduleError = null;
+  if (!els.scheduleToggleInput.checked) {
+    await chrome.runtime.sendMessage({ type: "CANCEL_SCHEDULED_START" });
+    return;
+  }
+  const at = els.scheduleInput.value ? new Date(els.scheduleInput.value).getTime() : NaN;
+  let error = null;
+  if (Number.isNaN(at)) error = "예약할 날짜와 시각을 먼저 입력해주세요.";
+  else if (at <= Date.now()) error = "예약 시각이 이미 지났습니다.";
+  else if ((await saveVisibleSlots()).length === 0) error = NO_VALID_SLOT;
+  else error = (await chrome.runtime.sendMessage({ type: "SCHEDULE_START", at }))?.error ?? null;
+
+  if (error) {
+    scheduleError = error;
+    els.scheduleToggleInput.checked = false;
+    render(await getState());
+  }
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+// <input type="datetime-local">은 시간대 없는 "YYYY-MM-DDTHH:MM"(로컬 시각) 형식이다.
+function toLocalInputValue(ms) {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
 function render(state) {
@@ -197,6 +269,26 @@ function render(state) {
   shutdownAt = state.shutdownAt ?? null;
   renderShutdownCountdown();
 
+  const scheduledAt = state.scheduledStartAt ?? null;
+  els.scheduleToggleInput.checked = !!scheduledAt;
+  els.scheduleToggleLabel.textContent = scheduledAt ? "예약 안함" : "예약 시작";
+  els.scheduleToggleInput.disabled = state.running;
+  els.scheduleInput.disabled = state.running || !!scheduledAt;
+  els.schedulePickerBtn.disabled = els.scheduleInput.disabled;
+  if (els.scheduleInput.disabled) setPickerOpen(false);
+  els.scheduleOn.classList.toggle("active", !!scheduledAt);
+  if (scheduledAt && document.activeElement !== els.scheduleInput) els.scheduleInput.value = toLocalInputValue(scheduledAt);
+  if (scheduledAt) {
+    const d = new Date(scheduledAt);
+    els.scheduleHint.textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 ${pad2(d.getHours())}:${pad2(d.getMinutes())}에 자동으로 시작합니다`;
+  } else {
+    els.scheduleHint.textContent = scheduleError ?? "";
+  }
+  els.scheduleHint.hidden = !els.scheduleHint.textContent;
+
+  // 예약해둔 동안 신청 내용이 바뀌면 예약한 것과 다르게 실행될 수 있어 실행 중처럼 잠근다.
+  const locked = state.running || !!scheduledAt;
+
   state.slots.forEach((slot, i) => {
     const slotEls = els.slots[i];
     if (!slotEls) return;
@@ -206,7 +298,7 @@ function render(state) {
 
     slotEls.enabled.checked = slot.enabled !== false;
     slotEls.enabledLabel.textContent = slotEls.enabled.checked ? "ON" : "OFF";
-    slotEls.enabled.disabled = state.running;
+    slotEls.enabled.disabled = locked;
 
     populateSelect(slotEls.from, slot.stationsFrom, slot.from);
     populateSelect(slotEls.to, slot.stationsTo, slot.to);
@@ -229,9 +321,9 @@ function render(state) {
     slotEls.ampm.forEach((radio) => (radio.checked = radio.value === slot.ampm));
 
     // 날짜는 역 목록을 읽어오는 중에도 바꿀 수 있어야 다시 조회를 트리거할 수 있다.
-    slotEls.date.disabled = state.running;
-    slotEls.queryBtn.disabled = state.running;
-    [slotEls.from, slotEls.to, ...slotEls.altFrom, ...slotEls.altTo, ...slotEls.ampm].forEach((el) => (el.disabled = state.running || state.fetchingStations));
+    slotEls.date.disabled = locked;
+    slotEls.queryBtn.disabled = locked;
+    [slotEls.from, slotEls.to, ...slotEls.altFrom, ...slotEls.altTo, ...slotEls.ampm].forEach((el) => (el.disabled = locked || state.fetchingStations));
   });
 
   renderLogs(state.logs);
