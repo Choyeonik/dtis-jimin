@@ -97,7 +97,17 @@ async function setState(patch) {
   return state;
 }
 
-async function addLog(text) {
+// 기록은 "읽어서 뒤에 붙이고 다시 저장"이라, 거의 동시에 두 줄이 들어오면 나중 것이
+// 먼저 것을 덮어써서 한 줄이 통째로 사라진다(콘텐츠 스크립트가 LOG와 NO_MATCH를
+// 잇따라 보낼 때 실제로 그랬다). 그래서 한 번에 한 줄씩만 처리하도록 줄 세운다.
+let logQueue = Promise.resolve();
+
+function addLog(text) {
+  logQueue = logQueue.then(() => appendLog(text)).catch(() => {});
+  return logQueue;
+}
+
+async function appendLog(text) {
   const state = await getState();
   const time = new Date().toLocaleTimeString("ko-KR", { hour12: false });
   const logs = [...state.logs, { time, text }].slice(-MAX_LOGS);
@@ -131,6 +141,7 @@ async function startAutomation(rawSlots) {
 
   // 직접 시작했으면 걸려 있던 예약 시작은 필요 없다 — 나중에 알람이 또 시작시키지 않게 지운다.
   await chrome.alarms.clear(SCHEDULED_START_ALARM);
+  await chrome.alarms.clear(KEEP_ALIVE_ALARM);
   // startedAt: 신청완료 알림의 "실행 시작시각/걸린 시간" 기준 — 두 번째 신청도 이 시각부터 잰다.
   await setState({
     running: true,
@@ -140,6 +151,7 @@ async function startAutomation(rawSlots) {
     tabId: tab.id,
     startedAt: Date.now(),
     scheduledStartAt: null,
+    nextKeepAliveAt: null,
   });
 
   await chrome.power.requestKeepAwake("system");
@@ -178,7 +190,9 @@ async function scheduleStart(at) {
   const state = await getState();
   if (state.running) return { error: "이미 실행 중입니다." };
   await chrome.alarms.create(SCHEDULED_START_ALARM, { when: at });
-  await setState({ scheduledStartAt: at });
+  await chrome.alarms.create(KEEP_ALIVE_ALARM, { periodInMinutes: KEEP_ALIVE_MINUTES });
+  // nextKeepAliveAt: 사이드패널의 "다음 새로고침까지" 타이머용
+  await setState({ scheduledStartAt: at, nextKeepAliveAt: Date.now() + KEEP_ALIVE_MINUTES * 60_000 });
   chrome.power.requestKeepAwake("system");
   const d = new Date(at);
   const pad = (n) => String(n).padStart(2, "0");
@@ -188,15 +202,54 @@ async function scheduleStart(at) {
 
 async function cancelScheduledStart() {
   await chrome.alarms.clear(SCHEDULED_START_ALARM);
-  const state = await setState({ scheduledStartAt: null });
+  await chrome.alarms.clear(KEEP_ALIVE_ALARM);
+  const state = await setState({ scheduledStartAt: null, nextKeepAliveAt: null });
   if (!state.running) chrome.power.releaseKeepAwake();
   await addLog("예약 시작을 취소했습니다");
   return { ok: true };
 }
 
+// 예약을 걸어두고 오래 기다리면 사이트가 자동 로그아웃시켜서, 예약 시각에 시작해도 로그인
+// 화면이라 진행이 안 된다. 그래서 기다리는 동안 몇 분마다 DTIS 탭을 새로고침해 로그인을 유지한다.
+const KEEP_ALIVE_ALARM = "keep-alive-refresh";
+const KEEP_ALIVE_MINUTES = 5;
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== KEEP_ALIVE_ALARM) return;
+  const state = await getState();
+  if (!state.scheduledStartAt || state.running) {
+    await chrome.alarms.clear(KEEP_ALIVE_ALARM);
+    await setState({ nextKeepAliveAt: null });
+    return;
+  }
+  await setState({ nextKeepAliveAt: Date.now() + KEEP_ALIVE_MINUTES * 60_000 });
+  const [tab] = await chrome.tabs.query({ url: `${SITE_ORIGIN}/*` });
+  if (!tab) {
+    await addLog("로그인 유지 실패: DTIS 탭이 열려 있지 않습니다");
+    return;
+  }
+  // 탭을 새로고침하면 양식 제출로 들어온 화면에서 "양식 다시 제출 확인" 창이 떠서 멈춘다.
+  // 그래서 화면은 그대로 두고, 탭 안에서 첫 화면(/m/)에 요청만 보내 서버 세션을 연장한다.
+  try {
+    const [{ result: status }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      world: "MAIN",
+      func: () =>
+        fetch("/m/", { credentials: "same-origin", cache: "no-store" }).then(
+          (res) => res.status,
+          (err) => `오류 ${err}`
+        ),
+    });
+    await addLog(`로그인 유지 요청 보냄 (응답 ${status}, ${KEEP_ALIVE_MINUTES}분마다)`);
+  } catch (err) {
+    await addLog(`로그인 유지 실패: ${err?.message || err}`);
+  }
+});
+
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name !== SCHEDULED_START_ALARM) return;
-  const state = await setState({ scheduledStartAt: null });
+  await chrome.alarms.clear(KEEP_ALIVE_ALARM);
+  const state = await setState({ scheduledStartAt: null, nextKeepAliveAt: null });
   if (state.running) return;
 
   const validSlots = state.slots.filter((s) => s.enabled && s.date && s.from && s.to);

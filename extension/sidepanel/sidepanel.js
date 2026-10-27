@@ -15,6 +15,7 @@ const els = {
   scheduleToggleInput: document.getElementById("schedule-toggle-input"),
   scheduleToggleLabel: document.getElementById("schedule-toggle-label"),
   scheduleHint: document.getElementById("schedule-hint"),
+  keepAliveHint: document.getElementById("keepalive-hint"),
   schedulePickerBtn: document.getElementById("schedule-picker-btn"),
   scheduleOn: document.getElementById("schedule-on"),
   logList: document.getElementById("log-list"),
@@ -59,6 +60,8 @@ const DEFAULT_STATE = () => ({
 });
 
 let shutdownAt = null;
+let nextKeepAliveAt = null;
+let scheduledStartAt = null;
 let scheduleError = null;
 let pickerOpen = false;
 
@@ -73,7 +76,10 @@ async function init() {
   const state = await getState();
   render(state);
   wireEvents();
-  setInterval(renderShutdownCountdown, 1000);
+  setInterval(() => {
+    renderShutdownCountdown();
+    renderKeepAliveCountdown();
+  }, 1000);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "session" && changes.state) render(changes.state.newValue);
   });
@@ -262,7 +268,8 @@ function render(state) {
   els.runBadge.classList.toggle("running", state.running);
   els.runLabel.textContent = state.running ? "실행 중" : "대기 중";
   els.runToggleInput.checked = state.running;
-  els.runToggleInput.disabled = state.fetchingStations;
+  // 예약해 둔 동안은 직접 시작하지 못하게 막는다 — 시작하려면 예약을 먼저 풀어야 한다.
+  els.runToggleInput.disabled = state.fetchingStations || !!state.scheduledStartAt;
   els.runToggleLabel.textContent = state.running ? "중지" : "시작";
   els.shutdownToggleInput.checked = !!state.shutdownOnSuccess;
   els.shutdownToggleLabel.textContent = state.shutdownOnSuccess ? "ON" : "OFF";
@@ -270,6 +277,9 @@ function render(state) {
   renderShutdownCountdown();
 
   const scheduledAt = state.scheduledStartAt ?? null;
+  scheduledStartAt = scheduledAt;
+  nextKeepAliveAt = state.nextKeepAliveAt ?? null;
+  renderKeepAliveCountdown();
   els.scheduleToggleInput.checked = !!scheduledAt;
   els.scheduleToggleLabel.textContent = scheduledAt ? "예약 안함" : "예약 시작";
   els.scheduleToggleInput.disabled = state.running;
@@ -327,6 +337,16 @@ function render(state) {
   });
 
   renderLogs(state.logs);
+}
+
+// 예약 시각 전에 다음 로그인 유지 요청이 있을 때만 보여준다(예약 시각이 더 빠르면 요청은 안 일어남).
+function renderKeepAliveCountdown() {
+  const remainMs = nextKeepAliveAt ? nextKeepAliveAt - Date.now() : 0;
+  const show = remainMs > 0 && scheduledStartAt && nextKeepAliveAt < scheduledStartAt;
+  els.keepAliveHint.hidden = !show;
+  if (!show) return;
+  const totalSec = Math.ceil(remainMs / 1000);
+  els.keepAliveHint.textContent = `로그인 유지를 위한 새로고침 ${pad2(Math.floor(totalSec / 60))}:${pad2(totalSec % 60)}`;
 }
 
 function renderShutdownCountdown() {

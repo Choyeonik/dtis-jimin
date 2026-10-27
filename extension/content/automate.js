@@ -74,7 +74,7 @@
     // 화면C가 아니게 됐다"는 사실 자체를 성공 신호로 쓴다 — 새로 뜬 이 페이지에서
     // 확인해 SLOT_DONE을 대신 보낸다.
     if (slot.pendingTicket && !isScreenC()) {
-      log(`슬롯 ${slot.index + 1}: 화면 전환이 감지되어 신청 완료로 처리`);
+      await log(`슬롯 ${slot.index + 1}: 화면 전환이 감지되어 신청 완료로 처리`);
       await sendToBackground({ type: "SLOT_DONE", slotIndex: slot.index, ticket: slot.pendingTicket });
       return;
     }
@@ -118,11 +118,11 @@
     findClickableByText("조회")?.click();
 
     // "조회된 데이터가 없습니다" 안내도 tr.m_table_html_tr로 렌더링되는 경우가 있어
-    // 행이 있다고 오판할 수 있다 — 실제 "예약가능" 버튼이 있는 행만 유효한 결과로 본다.
-    await waitFor(() => findBookableRows().length > 0 || findResultRows().length > 0, 4000);
+    // 행이 있다고 오판할 수 있다 — 실제 열차 행("신청"/"예약가능" 버튼이 있는 행)만 센다.
+    await waitFor(() => findTrainRows().length > 0 || findResultRows().length > 0, 4000);
     if (token !== activeFetchToken) return; // 날짜가 또 바뀌어 낡은 실행이 됨 — 멈춤
 
-    const rows = findBookableRows();
+    const rows = findTrainRows();
     if (rows.length === 0) {
       await sendToBackground({ type: "FETCH_STATIONS_FAILED", reason: "조회된 목록이 없습니다.", token });
       return;
@@ -180,31 +180,74 @@
 
   // ---------- Screen A: 탑승신청 (날짜 조회 + 결과 테이블) ----------
 
+  // 잔여석 예약이 열리는 시각에 맞춰 시작하면, 조회 결과가 아예 비어 있거나 열차는
+  // 보이는데 버튼이 아직 "신청"(linkPage01_01_1)인 상태일 수 있다. 그때 바로 멈추지 않고
+  // "예약가능"(linkPage01_01_2)이 뜰 때까지 이 간격으로 조회를 다시 누른다 — 덕분에
+  // 예약 시작을 오픈 정각이나 그보다 조금 이른 시각으로 잡아도 된다.
+  const OPEN_WAIT_INTERVAL_MS = 3000;
+  const OPEN_WAIT_TIMEOUT_MS = 10 * 60_000;
+
   async function runScreenA(slot) {
-    const dateInput = findDateInput();
-    if (dateInput && dateInput.value !== slot.date) {
-      setNativeValue(dateInput, slot.date);
-      dateInput.dispatchEvent(new Event("change", { bubbles: true }));
-    }
-    findClickableByText("조회")?.click();
+    const waitUntil = Date.now() + OPEN_WAIT_TIMEOUT_MS;
+    let candidates = [];
 
-    // #m_table_02's rows are re-rendered by srch(); give it a moment to load.
-    await waitFor(() => findResultRows().length > 0, 4000);
+    for (let attempt = 1; ; attempt++) {
+      // 기다리는 동안 사용자가 중지를 눌렀을 수 있다 — 매번 확인하고 빠져나간다.
+      const status = await sendToBackground({ type: "GET_AUTOMATION_STATUS" });
+      if (!status?.running) return;
 
-    const rows = findResultRows();
-    const matches = rows.filter((row) => rowMatchesSlot(row, slot));
-    if (matches.length === 0) {
-      await sendToBackground({ type: "NO_MATCH", slotIndex: slot.index });
-      log(`슬롯 ${slot.index + 1}: 조건에 맞는 열차를 찾지 못함`);
-      return;
+      const dateInput = findDateInput();
+      if (dateInput && dateInput.value !== slot.date) {
+        setNativeValue(dateInput, slot.date);
+        dateInput.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      findClickableByText("조회")?.click();
+
+      // #m_table_02's rows are re-rendered by srch(); give it a moment to load.
+      await waitFor(() => findTrainRows().length > 0, 4000);
+
+      const rows = findTrainRows();
+      const matched = rows.filter((row) => rowMatchesSlot(row, slot));
+
+      // 열차 목록은 떴는데 조건에 맞는 행이 하나도 없다면 그 날짜에 그 구간이 없다는
+      // 뜻이라 기다려도 달라지지 않는다 — 바로 멈추고 어긋난 지점을 기록에 남긴다.
+      if (rows.length > 0 && matched.length === 0) {
+        await log(
+          `슬롯 ${slot.index + 1}: 조건에 맞는 열차를 찾지 못함 — 찾는 조건 [${slot.date} / ${slot.from}→${slot.to} / ${AMPM_LABEL[slot.ampm] ?? slot.ampm}], 조회된 ${rows.length}건 중 앞 3건: ${describeRows(rows)}`
+        );
+        await sendToBackground({ type: "NO_MATCH", slotIndex: slot.index });
+        return;
+      }
+
+      candidates = matched.map((row) => ({ id: extractTrainId(row), row })).filter((c) => c.id != null);
+      if (candidates.length > 0) {
+        if (attempt > 1) await log(`슬롯 ${slot.index + 1}: 잔여석 예약이 열렸습니다 (${attempt}회째 조회)`);
+        break;
+      }
+
+      // 여기까지 왔으면 (1) 조회 결과가 아직 없거나 (2) 조건에 맞는 열차는 있는데 아직
+      // "신청"(linkPage01_01_1)만 있고 "예약가능"(잔여석)이 안 뜬 상태다. 둘 다 시간이
+      // 지나면 바뀌는 것이라 중단하지 않고 다시 조회하며 기다린다.
+      const reason =
+        rows.length === 0 ? "조회 결과가 없음" : `조건에 맞는 열차 ${matched.length}건에 아직 "예약가능"이 뜨지 않음`;
+
+      if (Date.now() >= waitUntil) {
+        await log(`슬롯 ${slot.index + 1}: ${OPEN_WAIT_TIMEOUT_MS / 60_000}분을 기다려도 ${reason}`);
+        await sendToBackground({ type: "NO_MATCH", slotIndex: slot.index });
+        return;
+      }
+      // 매번 남기면 기록이 금방 밀려나므로 처음 한 번과 1분마다만 남긴다.
+      if (attempt === 1) {
+        log(`슬롯 ${slot.index + 1}: ${reason} — 열릴 때까지 ${OPEN_WAIT_INTERVAL_MS / 1000}초마다 다시 조회합니다`);
+      } else if (attempt % 20 === 0) {
+        log(`슬롯 ${slot.index + 1}: ${reason} (${attempt}회 조회)`);
+      }
+      await sleep(OPEN_WAIT_INTERVAL_MS);
     }
 
     // 조건에 맞는 열차가 여러 개면 한 대에만 매달리지 않고 라운드로빈으로 돌아가며
     // 확인한다 — 어느 후보를 다음으로 시도할지는 background가 정해준다(이전에
     // 시도한 열차 id를 기억해뒀다가 그다음 걸 고름).
-    const candidates = matches
-      .map((row) => ({ id: extractTrainId(row), row }))
-      .filter((c) => c.id != null);
     const { id: targetId } = await sendToBackground({
       type: "PICK_CANDIDATE",
       slotIndex: slot.index,
@@ -219,13 +262,20 @@
     const arriveTime = cells[6]?.textContent.match(/\d{1,2}:\d{2}/)?.[0] || null;
     await sendToBackground({ type: "TRAIN_MATCHED", slotIndex: slot.index, departTime, arriveTime });
 
-    log(`슬롯 ${slot.index + 1}: 조건에 맞는 열차 ${matches.length}개 중 하나 선택(id=${targetId}), 예약가능 클릭`);
-    target.row.querySelector("button.m_btn_106")?.click();
+    log(`슬롯 ${slot.index + 1}: 조건에 맞는 열차 ${candidates.length}개 중 하나 선택(id=${targetId}), 예약가능 클릭`);
+    findRemainSeatButton(target.row)?.click();
     // linkPage01_01_2(id, date, 1) navigates to Screen B; script re-runs fresh on the new page.
   }
 
+  // 결과표의 행 버튼은 두 종류이고, 둘 다 class는 m_btn_106으로 같다 — 구분은 onclick으로 한다.
+  //   linkPage01_01_1(id, date)     "신청"     : 일반 탑승신청. 잔여석 예약이 아직 안 열린 상태.
+  //   linkPage01_01_2(id, date, 1)  "예약가능" : 잔여석 예약 — 이 확장이 노리는 버튼.
+  function findRemainSeatButton(row) {
+    return row.querySelector('button[onclick*="linkPage01_01_2"]');
+  }
+
   function extractTrainId(row) {
-    const onclick = row.querySelector("button.m_btn_106")?.getAttribute("onclick") || "";
+    const onclick = findRemainSeatButton(row)?.getAttribute("onclick") || "";
     const m = onclick.match(/linkPage01_01_2\((\d+)/);
     return m ? parseInt(m[1], 10) : null;
   }
@@ -234,18 +284,34 @@
     return Array.from(document.querySelectorAll("#m_table_02 tr.m_table_html_tr"));
   }
 
-  // "조회된 데이터가 없습니다" 안내 행도 findResultRows()에 걸릴 수 있어, 실제로
-  // "예약가능" 버튼이 있는 행만 걸러낸다.
-  function findBookableRows() {
+  // "조회된 데이터가 없습니다" 안내 행도 findResultRows()에 걸릴 수 있어, 실제 열차 행만
+  // 걸러낸다("신청"이든 "예약가능"이든 버튼이 있는 행 = 열차 한 대).
+  function findTrainRows() {
     return findResultRows().filter((row) => row.querySelector("button.m_btn_106"));
+  }
+
+  const AMPM_LABEL = { AM: "오전", PM: "오후", ALL: "오전/오후 무관" };
+
+  // 매칭 실패를 기록에 남길 때 쓰는 요약 — 일자/출발역/도착역만 뽑아 짧게 적는다.
+  function describeRows(rows) {
+    return rows
+      .slice(0, 3)
+      .map((row) => {
+        const cells = row.querySelectorAll("td");
+        const text = (i) => normalizeText(cells[i]?.textContent) || "?";
+        return `${text(3)} ${text(5)}→${text(6)}`;
+      })
+      .join(" | ");
   }
 
   // Column order in #m_table_02: 번호(0) 신청여부(1) 잔여석(2) 일자(3) 열차명(4) 출발역(5) 도착역(6)
   function rowMatchesSlot(row, slot) {
     const cells = row.querySelectorAll("td");
     if (cells.length < 7) return false;
-    const fromText = cells[5].textContent;
-    const toText = cells[6].textContent;
+    // 역 목록을 뽑을 때(extractStations)는 trim한 이름을 쓰므로, 비교할 때도 똑같이
+    // trim해야 한다 — 셀 앞에 줄바꿈/공백이 붙어 있으면 startsWith가 전부 빗나간다.
+    const fromText = cells[5].textContent.trim();
+    const toText = cells[6].textContent.trim();
     if (!fromText.startsWith(slot.from) || !toText.startsWith(slot.to)) return false;
 
     if (slot.ampm === "ALL") return true; // 오전/오후 상관없이 다 후보로 삼음
@@ -319,7 +385,7 @@
         await sendToBackground({ type: "SEAT_APPLY_FAILED", slotIndex: slot.index });
         if (lastAlert.message.includes("중복")) {
           // 이미 예약되어 있어서 나는 실패라, 재시도해도 계속 똑같이 막힌다 — 중단.
-          log(`슬롯 ${slot.index + 1}: 신청 중단(${lastAlert.message}) — 이미 예약된 것으로 보임`);
+          await log(`슬롯 ${slot.index + 1}: 신청 중단(${lastAlert.message}) — 이미 예약된 것으로 보임`);
           await sendToBackground({ type: "DUPLICATE_BOOKING", slotIndex: slot.index, reason: lastAlert.message });
           return;
         }
@@ -329,7 +395,7 @@
           continue;
         }
         // 이 열차에서 놓쳤다고 계속 붙잡지 않고, 다음 후보 열차로 넘어간다.
-        log(`슬롯 ${slot.index + 1}: 신청 실패(${lastAlert.message}) — 다음 후보로 이동`);
+        await log(`슬롯 ${slot.index + 1}: 신청 실패(${lastAlert.message}) — 다음 후보로 이동`);
         await sendToBackground({ type: "CANDIDATE_EXHAUSTED", slotIndex: slot.index, reason: "신청 실패" });
         return;
       }
@@ -337,12 +403,12 @@
       // 아직 화면C에 남아있다면(=페이지 이동 없이 여기까지 옴) alert도 없었으니 성공으로 본다.
       // 이미 화면이 넘어가버렸다면 이 줄에 도달하기 전에 스크립트가 사라졌을 것이고,
       // 그 경우는 checkAndAct()의 pendingTicket 확인이 대신 SLOT_DONE을 보낸다.
-      log(`슬롯 ${slot.index + 1}: 신청 완료${alerted ? `(${lastAlert.message})` : ""}`);
+      await log(`슬롯 ${slot.index + 1}: 신청 완료${alerted ? `(${lastAlert.message})` : ""}`);
       await sendToBackground({ type: "SLOT_DONE", slotIndex: slot.index, ticket });
       return;
     }
 
-    log(`슬롯 ${slot.index + 1}: 이번 열차엔 좌석이 뜨지 않음 — 다음 후보로 이동`);
+    await log(`슬롯 ${slot.index + 1}: 이번 열차엔 좌석이 뜨지 않음 — 다음 후보로 이동`);
     await sendToBackground({ type: "CANDIDATE_EXHAUSTED", slotIndex: slot.index, reason: "좌석 없음" });
   }
 
@@ -468,8 +534,9 @@
     });
   }
 
+  // 뒤이어 다른 메시지를 보낼 때는 await해서 기록이 그 전에 남도록 한다.
   function log(text) {
-    sendToBackground({ type: "LOG", text });
+    return sendToBackground({ type: "LOG", text });
   }
 
   function sendToBackground(message) {

@@ -236,6 +236,7 @@ body {
 
 .footer { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
 .footer .hint { margin-top: 0; }
+.keepalive-hint { font-variant-numeric: tabular-nums; }
 
 .schedule-row { display: flex; align-items: center; gap: 8px; }
 /* "열기/확인" 버튼을 입력칸 안쪽 오른쪽(원래 캘린더 아이콘 자리)에 겹쳐 놓는다. */
