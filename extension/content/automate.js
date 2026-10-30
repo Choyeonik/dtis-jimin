@@ -115,7 +115,7 @@
       setNativeValue(dateInput, date);
       dateInput.dispatchEvent(new Event("change", { bubbles: true }));
     }
-    findClickableByText("조회")?.click();
+    clickSearch();
 
     // "조회된 데이터가 없습니다" 안내도 tr.m_table_html_tr로 렌더링되는 경우가 있어
     // 행이 있다고 오판할 수 있다 — 실제 열차 행("신청"/"예약가능" 버튼이 있는 행)만 센다.
@@ -201,7 +201,7 @@
         setNativeValue(dateInput, slot.date);
         dateInput.dispatchEvent(new Event("change", { bubbles: true }));
       }
-      findClickableByText("조회")?.click();
+      clickSearch();
 
       // #m_table_02's rows are re-rendered by srch(); give it a moment to load.
       await waitFor(() => findTrainRows().length > 0, 4000);
@@ -278,6 +278,14 @@
     const onclick = findRemainSeatButton(row)?.getAttribute("onclick") || "";
     const m = onclick.match(/linkPage01_01_2\((\d+)/);
     return m ? parseInt(m[1], 10) : null;
+  }
+
+  // 조회를 누른 직후엔 이전 결과(다른 날짜일 수도 있음)가 아직 화면에 남아 있어서,
+  // 행이 생기길 기다리면 바로 그 낡은 행으로 판단하게 된다. 그래서 누르기 전에 기존 행을
+  // 지워 두고, 이후 보이는 행은 이번 조회(srch())가 새로 그린 것만 남게 한다.
+  function clickSearch() {
+    findResultRows().forEach((row) => row.remove());
+    findClickableByText("조회")?.click();
   }
 
   function findResultRows() {

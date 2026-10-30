@@ -91,27 +91,26 @@ async function getState() {
   return state ?? DEFAULT_STATE;
 }
 
-async function setState(patch) {
-  const state = { ...(await getState()), ...patch };
-  await chrome.storage.session.set({ state });
-  return state;
-}
+// 상태 저장은 "읽고 합쳐서 다시 저장"이라, 두 저장이 겹치면 늦게 끝난 쪽이 먼저 것을
+// 덮어쓴다(기록 한 줄이 사라지거나, 기록 저장이 방금 누른 중지를 running: true로 되돌림).
+// 그래서 모든 저장을 한 줄로 세우고, 매번 가장 최신 상태 위에 합친다.
+// patch가 함수면 그 최신 상태를 받아 바꿀 부분을 돌려준다(기록 덧붙이기처럼 이전 값이 필요할 때).
+let stateQueue = Promise.resolve();
 
-// 기록은 "읽어서 뒤에 붙이고 다시 저장"이라, 거의 동시에 두 줄이 들어오면 나중 것이
-// 먼저 것을 덮어써서 한 줄이 통째로 사라진다(콘텐츠 스크립트가 LOG와 NO_MATCH를
-// 잇따라 보낼 때 실제로 그랬다). 그래서 한 번에 한 줄씩만 처리하도록 줄 세운다.
-let logQueue = Promise.resolve();
+function setState(patch) {
+  const run = stateQueue.then(async () => {
+    const current = await getState();
+    const state = { ...current, ...(typeof patch === "function" ? patch(current) : patch) };
+    await chrome.storage.session.set({ state });
+    return state;
+  });
+  stateQueue = run.catch(() => {});
+  return run;
+}
 
 function addLog(text) {
-  logQueue = logQueue.then(() => appendLog(text)).catch(() => {});
-  return logQueue;
-}
-
-async function appendLog(text) {
-  const state = await getState();
   const time = new Date().toLocaleTimeString("ko-KR", { hour12: false });
-  const logs = [...state.logs, { time, text }].slice(-MAX_LOGS);
-  await setState({ logs });
+  return setState((state) => ({ logs: [...state.logs, { time, text }].slice(-MAX_LOGS) }));
 }
 
 // 실패(또는 설정 누락)를 실행 로그에 남겨서, 조용히 안 오는 알림의 원인을
